@@ -47,6 +47,38 @@ declare_object(Sample,
 //when using
 Sample s;
 declare_top_deserialiser(s, holder);
-JsonDeserialise::JsonDeserialiser deserialiser(false, holder);
+JsonDeserialise::JsonDeserialiser deserialiser(holder);
+deserialiser.deserialiseFile(FILENAME);
+```
+### 3.For Map(that is embedded)
+//For Json:
+```json
+{
+    "Key":1,
+    "Num":114514,
+    "Name":"田所浩二"
+}
+```
+```c++
+//if you have a class like:
+struct Person{
+    int num;
+    QString name;
+};
+//A map like this
+std::map<int, Person> namelist;
+```
+```c++
+//After Definition
+register_object_member(Person, "Num", num);
+register_object_member(Person, "Name", name);
+declare_object(Person,
+    object_member(Person, num),
+    object_member(Person, name)
+);
+......
+//when using
+declare_object_map_deserialiser(namelist, "Key", holder);
+JsonDeserialise::JsonDeserialiser deserialiser(holder);
 deserialiser.deserialiseFile(FILENAME);
 ```
