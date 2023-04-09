@@ -22,7 +22,7 @@ TypeA a;
 TypeB b;
 declare_deserialiser("A", a, a_holder);
 declare_deserialiser("B", b, b_holder);
-JsonDeserialise::JsonDeserialiser deserialiser(false, a_holder, b_holder);
+JsonDeserialise::JsonDeserialiser deserialiser(a_holder, b_holder);
 deserialiser.deserialiseFile(FILENAME);
 ```
 ### 2.For Normal struct/class
