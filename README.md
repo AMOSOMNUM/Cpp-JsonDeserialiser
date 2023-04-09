@@ -17,7 +17,6 @@ Based on Qt's Json Library, it convert json into various types through static de
 |MapArray|std::map\<KeyType, ValueType>|
 ## Usage
 ### 1. For Trivial Types
-```
 ```c++
 TypeA a;
 TypeB b;
@@ -51,8 +50,8 @@ JsonDeserialise::JsonDeserialiser deserialiser(holder);
 deserialiser.deserialiseFile(FILENAME);
 ```
 ### 3.For Map(that is embedded)
-//For Json:
 ```json
+//For Json:
 {
     "Key":1,
     "Num":114514,
