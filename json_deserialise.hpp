@@ -141,7 +141,7 @@ namespace JsonDeserialise {
         const bool anonymous = false;
         const QString identifier;
         const enum class AsType : unsigned {
-            NonTrivial = 0, LIMITED = 1, NULLABLE = 2, STRING = 4, INTEGER = 8, BOOLEAN = 16, REAL = 32, OBJECT = 64, ARRAY_LIKE = 128
+            NonTrivial = 0, LIMITED = 1, NULLABLE = 2, STRING = 4, INTEGER = 8, BOOLEAN = 16, DOUBLE = 32, OBJECT = 64, ARRAY_LIKE = 128
         } as;
     protected:
         DeserialisableBase(AsType _as) : anonymous(true), as(_as) {}
@@ -171,8 +171,8 @@ namespace JsonDeserialise {
 
     template<class...Args>
     class JsonSerialiser {
-        const std::enable_if_t<isValid<Args...>(), bool> is_array;
         const DeserialisableBase* value[count<Args...>()];
+        const std::enable_if_t<isValid<Args...>(), bool> is_array;
     private:
         constexpr bool isArray() {
             using AsType = DeserialisableBase::AsType;
@@ -181,7 +181,7 @@ namespace JsonDeserialise {
             return false;
         }
     public:
-        JsonSerialiser(const Args&...args) : is_array(isArray()), value{ &args... } {}
+        JsonSerialiser(const Args&...args) : value{ &args... }, is_array(isArray()) {}
 
         void serialise(QString filepath) const {
             QFile file(filepath);
@@ -236,9 +236,9 @@ namespace JsonDeserialise {
 
     template<class...Args>
     class JsonDeserialiser {
-        const std::enable_if_t<isValid<Args...>(), bool> is_array;
         mutable bool delete_after_used = false;
         DeserialisableBase* value[count<Args...>()];
+        const std::enable_if_t<isValid<Args...>(), bool> is_array;
     private:
         constexpr bool isArray() {
             using AsType = DeserialisableBase::AsType;
@@ -247,8 +247,8 @@ namespace JsonDeserialise {
             return false;
         }
     public:
-        JsonDeserialiser(Args*...args) : is_array(isArray()), value{ args... } {}
-        JsonDeserialiser(Args&...args) : is_array(isArray()), value{ &args... } {}
+        JsonDeserialiser(Args*...args) : value{ args... }, is_array(isArray()) {}
+        JsonDeserialiser(Args&...args) : value{ &args... }, is_array(isArray()) {}
         ~JsonDeserialiser() {
             if (delete_after_used)
                 for (auto i : value)
@@ -416,7 +416,7 @@ namespace JsonDeserialise {
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toInt();
-            else if (data.isREAL())
+            else if (data.isDouble())
                 value = data.toInt();
             else
                 throw std::ios_base::failure("Type Unmatch!");
@@ -436,7 +436,7 @@ namespace JsonDeserialise {
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toUInt();
-            else if (data.isREAL())
+            else if (data.isDouble())
                 value = data.toVariant().toUInt();
             else
                 throw std::ios_base::failure("Type Unmatch!");
@@ -449,18 +449,18 @@ namespace JsonDeserialise {
     template<typename T = double, size_t size = 4>
     class Real;
 
-    template<>
-    class Real<double, 4> : public DeserialisableBase {
+    template<typename T>
+    class Real<T, 4> : public DeserialisableBase {
         using U = std::decay_t<T>;
         U& value;
     public:
-        Real(U& source) : DeserialisableBase(AsType::REAL), value(source) {}
-        Real(QString name, U& source) : DeserialisableBase(name, AsType::REAL), value(source) {}
+        Real(U& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
+        Real(QString name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
-                value = data.toString().toREAL();
-            else if (data.isREAL())
-                value = data.toREAL();
+                value = data.toString().toDouble();
+            else if (data.isDouble())
+                value = data.toDouble();
             else
                 throw std::ios_base::failure("Type Unmatch!");
         }
@@ -1105,8 +1105,8 @@ namespace JsonDeserialise {
     };
 
     template<>
-    struct Deserialisable<REAL> {
-        using Type = Real<REAL>;
+    struct Deserialisable<double> {
+        using Type = Real<double>;
     };
 }
 
@@ -1123,7 +1123,7 @@ namespace JsonDeserialise {
 #define object_member(object_type, member_name) JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name), JsonDeserialise::object_type##_##member_name, (offsetof(object_type, member_name))>
 #define declare_object(object_type, ...) template<> struct JsonDeserialise::Deserialisable<object_type> { using Type = DeserialisableObject<object_type, __VA_ARGS__>; };
 #define declare_class_with_json_constructor_and_serialiser(object_type) template<> struct JsonDeserialise::Deserialisable<object_type> { using Type = SelfDeserialisableObject<object_type>; };
-#define declare_map_with_key(container_type, key_type, value_type, key_name) namespace JsonDeserialise {const char key_type##_##value_name[] = key_name;}; template<> struct JsonDeserialise::Deserialisable<container_type<key_type, value_type>> { using Type = MapArray<container_type<key_type, value_type>, key_type, value_type, key_type##_##value_name>; };
+#define declare_map_with_key(container_type, key_type, value_type, key_name) const char key_type##_##value_name[] = key_name; template<> struct JsonDeserialise::Deserialisable<container_type<key_type, value_type>> { using Type = MapArray<container_type<key_type, value_type>, key_type, value_type, key_type##_##value_name>; };
 #define declare_object_with_base_class(object_type, base_type, ...) template<> struct JsonDeserialise::Deserialisable<object_type> { using Type = DerivedObject<base_type, object_type, __VA_ARGS__>; };
 
 #endif // JSON_DESERIALISER_H

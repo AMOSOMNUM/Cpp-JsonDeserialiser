@@ -33,3 +33,6 @@
 
 #vs
 .vs/
+
+#vscode
+.vscode/
