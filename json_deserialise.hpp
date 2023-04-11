@@ -174,7 +174,7 @@ namespace JsonDeserialise {
         const DeserialisableBase* value[count<Args...>()];
         const std::enable_if_t<isValid<Args...>(), bool> is_array;
     private:
-        constexpr bool isArray() {
+        bool isArray() {
             using AsType = DeserialisableBase::AsType;
             if (count<Args...>() == 1)
                 return AsType(unsigned(value[0]->as) & unsigned(AsType::ARRAY_LIKE)) == AsType::ARRAY_LIKE && value[0]->anonymous;
@@ -213,12 +213,12 @@ namespace JsonDeserialise {
 
         QJsonValue serialise_to_json() const {
             if (is_array) {
-                auto json = QJsonArray();
+                QJsonArray json;
                 for (auto i : value)
                     i->append(json);
                 return json;
             }
-            auto json = QJsonObject();
+            QJsonObject json;
             for (auto i : value)
                 i->append(json);
             return json;
@@ -880,9 +880,9 @@ namespace JsonDeserialise {
     public:
         MapArray(U& source) : DeserialisableBase(AsType(unsigned(AsType(AsType::ARRAY_LIKE)) | unsigned(AsType(AsType::OBJECT)))), value(source) {}
         virtual void assign(const QJsonValue& data) override {
+            if (!data.isArray() && !data.isNull())
+                throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
-                if (!data.isArray() && !data.isNull())
-                    throw std::ios_base::failure("Type Unmatch!");
                 KeyType key_value;
                 ValueType value_value;
                 DeserialisableType<KeyType> key_deserialiser(key_value);
@@ -917,9 +917,9 @@ namespace JsonDeserialise {
         MapArray(U& source, QString key_name) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name) {}
         MapArray(U& source, QString key_name, QString val_json_name) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name), val_name(val_json_name) {}
         virtual void assign(const QJsonValue& data) override {
+            if (!data.isArray() && !data.isNull())
+                throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
-                if (!data.isArray() && !data.isNull())
-                    throw std::ios_base::failure("Type Unmatch!");
                 KeyType key_value;
                 ValueType value_value;
                 DeserialisableType<KeyType> key_deserialiser(key_value);
@@ -971,6 +971,71 @@ namespace JsonDeserialise {
         }
         ~DerivedObject() {
             serialiser.clear();
+        }
+    };
+
+    template<typename T, typename Type1, typename Type2>
+    class Pair : public DeserialisableBase {
+        using U = std::decay_t<T>;
+        U& value;
+        QString name[2];
+    public:
+        Pair(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::OBJECT), value(source), name{name1, name2} {}
+        Pair(QString json_name, U& source, const QString& name1, const QString& name2) : DeserialisableBase(json_name, AsType::OBJECT), value(source), name{name1, name2} {}
+        virtual void assign(const QJsonValue& data) override {
+            if (!data.isArray() && !data.isNull())
+                throw std::ios_base::failure("Type Unmatch!");
+            for (const auto& i : data.toArray()) {
+                Type1& element1 = value.first;
+                Type2& element2 = value.second;
+                DeserialisableType<Type1> deserialiser1(element1);
+                DeserialisableType<Type2> deserialiser2(element2);
+                deserialiser1.assign(i.toObject()[name[0]]);
+                deserialiser2.assign(i.toObject()[name[1]]);
+            }
+        }
+        virtual QJsonValue to_json() const override {
+            QJsonObject pair;
+            Type1& element1 = value.first;
+            Type2& element2 = value.second;
+            DeserialisableType<Type1> deserialiser1(element1);
+            DeserialisableType<Type2> deserialiser2(element2);
+            pair.insert(name[0], deserialiser1.to_json());
+            pair.insert(name[1], deserialiser2.to_json());
+            return pair;
+        }
+    };
+
+    template<typename T, typename PairType>
+    class PairArray : public DeserialisableBase {
+        using U = std::decay_t<T>;
+        U& value;
+        QString name[2];
+    public:
+        PairArray(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::ARRAY_LIKE), value(source), name{name1, name2} {}
+
+        virtual std::enable_if_t<bool(choose_pushback<T, PairType>::value)> assign(const QJsonValue& data) override {
+            if (!data.isArray() && !data.isNull())
+                throw std::ios_base::failure("Type Unmatch!");
+            for (const auto& i : data.toArray()) {
+                if constexpr(choose_pushback<T, PairType>::value == ArrayPushBackWay::Push_Back)
+                    value.push_back(PairType());
+                else if constexpr(choose_pushback<T, PairType>::value == ArrayPushBackWay::Append)
+                    value.append(PairType());
+                else if constexpr(choose_pushback<T, PairType>::value == ArrayPushBackWay::Insert)
+                    value.insert(PairType());
+                PairType& pair = value.back();
+                DeserialisableType<PairType> deserialiser(pair, name[0], name[1]);
+                deserialiser.assign(i);
+            }
+        }
+        virtual QJsonValue to_json() const override {
+            QJsonArray array;
+            for (const auto& i : value) {
+                DeserialisableType<PairType> deserialiser(i, name[0], name[1]);
+                array.append(deserialiser.to_json());
+            }
+            return array;
         }
     };
 
@@ -1089,6 +1154,11 @@ namespace JsonDeserialise {
         using Type = MapArray<QMap<Key, Value>, Key, Value>;
     };
 
+    template<typename First, typename Second>
+    struct Deserialisable<std::pair<First, Second>> {
+        using Type = Pair<std::pair<First, Second>, First, Second>;
+    };
+
     template<>
     struct Deserialisable<bool> {
         using Type = Boolean;
@@ -1112,6 +1182,8 @@ namespace JsonDeserialise {
 
 #define declare_top_deserialiser(data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name));
 #define declare_deserialiser(json_name, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), (data_name));
+#define declare_pair_deserialiser(object_name, json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((object_name), (data_name), (json_name1), (json_name2));
+#define declare_pair_array_deserialiser(json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name), (json_name1), (json_name2));
 #define declare_simple_map_deserialiser(data_name, key_name, val_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name, val_name);
 #define declare_object_map_deserialiser(data_name, key_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name);
 #define declare_serialiser(json_name, data_name, var_name) const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), const_cast<std::decay_t<decltype(data_name)>&>(data_name));
