@@ -983,7 +983,7 @@ namespace JsonDeserialise {
         Pair(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::OBJECT), value(source), name{name1, name2} {}
         Pair(QString json_name, U& source, const QString& name1, const QString& name2) : DeserialisableBase(json_name, AsType::OBJECT), value(source), name{name1, name2} {}
         virtual void assign(const QJsonValue& data) override {
-            if (!data.isArray() && !data.isNull())
+            if (!data.isObject() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
                 Type1& element1 = value.first;
@@ -1167,7 +1167,7 @@ namespace JsonDeserialise {
     template<>
     struct Deserialisable<int> {
         using Type = Integer<int>;
-    };      
+    };
 
     template<>
     struct Deserialisable<unsigned> {
