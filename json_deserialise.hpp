@@ -131,11 +131,6 @@ namespace JsonDeserialise {
         static constexpr bool value = true;
     };
 
-    template<typename T = void, typename...Args>
-    constexpr int count() {
-        return std::is_same_v<T, void> ? 0 : 1 + count<Args...>();
-    }
-
     class DeserialisableBase {
     public:
         const bool anonymous = false;
@@ -171,12 +166,12 @@ namespace JsonDeserialise {
 
     template<class...Args>
     class JsonSerialiser {
-        const DeserialisableBase* value[count<Args...>()];
+        const DeserialisableBase* value[sizeof...(Args)];
         const std::enable_if_t<isValid<Args...>(), bool> is_array;
     private:
         bool isArray() {
             using AsType = DeserialisableBase::AsType;
-            if (count<Args...>() == 1)
+            if (sizeof...(Args) == 1)
                 return AsType(unsigned(value[0]->as) & unsigned(AsType::ARRAY_LIKE)) == AsType::ARRAY_LIKE && value[0]->anonymous;
             return false;
         }
@@ -224,7 +219,7 @@ namespace JsonDeserialise {
             return json;
         }
 
-        QJsonValue serialise_to_file(QString filepath) const {
+        void serialise_to_file(QString filepath) const {
             const auto data = serialise();
             QFile file(filepath);
             if (!file.open(QFile::WriteOnly))
@@ -237,12 +232,12 @@ namespace JsonDeserialise {
     template<class...Args>
     class JsonDeserialiser {
         mutable bool delete_after_used = false;
-        DeserialisableBase* value[count<Args...>()];
+        DeserialisableBase* value[sizeof...(Args)];
         const std::enable_if_t<isValid<Args...>(), bool> is_array;
     private:
         constexpr bool isArray() {
             using AsType = DeserialisableBase::AsType;
-            if (count<Args...>() == 1)
+            if (sizeof...(Args) == 1)
                 return AsType(unsigned(value[0]->as) & unsigned(AsType::ARRAY_LIKE)) == AsType::ARRAY_LIKE && value[0]->anonymous;
             return false;
         }
@@ -299,7 +294,7 @@ namespace JsonDeserialise {
             return json;
         }
 
-        QJsonValue serialise_to_file(QString filepath) const {
+        void serialise_to_file(QString filepath) const {
             const auto data = serialise();
             QFile file(filepath);
             if (!file.open(QFile::WriteOnly))
@@ -345,7 +340,7 @@ namespace JsonDeserialise {
             deserialise(json_object);
         }
         void deserialise(const QJsonObject& object) {
-            constexpr int size = count<Args...>();
+            constexpr int size = sizeof...(Args);
             int count = 0;
             for (auto i : value) {
                 count++;
@@ -361,7 +356,7 @@ namespace JsonDeserialise {
                 throw std::ios_base::failure("JSON Structure Incompatible!");
         }
         void deserialise_array(const QJsonArray& json) {
-            constexpr int size = count<Args...>();
+            constexpr int size = sizeof...(Args);
             if ((unsigned(value[0]->as) & unsigned(DeserialisableBase::AsType::ARRAY_LIKE)) == unsigned(DeserialisableBase::AsType::ARRAY_LIKE) && size == 1) {
                 value[0]->assign(json);
                 return;
