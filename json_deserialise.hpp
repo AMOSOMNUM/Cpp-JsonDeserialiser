@@ -2,6 +2,7 @@
 #define JSON_DESERIALISER_H
 
 #include <cstddef>
+#include <functional>
 #include <list>
 #include <map>
 #include <optional>
@@ -714,7 +715,7 @@ namespace JsonDeserialise {
     class ObjectArray : public DeserialisableBase {
         using Prototype = Object<ObjectType, DeserialisableType<Members>...>;
         T& value;
-        static constexpr size_t size = count<Members...>();
+        static constexpr size_t size = sizeof...(Members);
         size_t offset[size];
         const char* names[size];
     public:
@@ -1031,6 +1032,41 @@ namespace JsonDeserialise {
                 array.append(deserialiser.to_json());
             }
             return array;
+        }
+    };
+
+    template<typename Des, typename ConvertFunctor, typename DeconvertFunctor, typename StringType = QString>
+    struct Convertor {
+        using Type = DeserialisableType<StringType>;
+        using Target = std::decay_t<Des>;
+        using Source = std::decay_t<StringType>;
+        std::function<ConvertFunctor> convertor;
+        std::function<DeconvertFunctor> deconvertor;
+        Convertor(ConvertFunctor convertor, DeconvertFunctor deconvertor) : convertor(convertor), deconvertor(deconvertor) {}
+        template<typename OtherConvertFunctor, typename otherDeconvertFunctor>
+        Convertor(Convertor<Des, OtherConvertFunctor, otherDeconvertFunctor, StringType>&& other) : convertor(std::move(other.convertor)), deconvertor(std::move(other.deconvertor)) {}
+    };
+
+    template<int N, typename VarientType, typename...Varient_Convertor>
+    class Varient {};   //todo
+
+    template<typename Varient_Convertor>
+    class Varient<1, typename Varient_Convertor::Target, Varient_Convertor> : public DeserialisableBase {
+        using Type = typename Varient_Convertor::Type;
+        using Target = typename Varient_Convertor::Target;
+        Target& value;
+        typename Varient_Convertor::Source tmp;
+        std::decay_t<Varient_Convertor> convertor;
+        typename Varient_Convertor::Type prototype;
+    public:
+        Varient(Varient_Convertor& convertor, Target& source) : DeserialisableBase(AsType::STRING), value(source), convertor(convertor), prototype(tmp) {}
+        //Varient(Varient_Convertor&& convertor) : DeserialisableBase(AsType::STRING), convertor(convertor), prototype(tmp) {}
+        virtual void assign(const QJsonValue& data) override {
+            prototype.assign(data);
+            value = convertor.convertor(tmp);
+        }
+        virtual QJsonValue to_json() const override {
+            return StringConvertor<typename Varient_Convertor::Source>::deconvert(convertor.deconvertor(value));
         }
     };
 
