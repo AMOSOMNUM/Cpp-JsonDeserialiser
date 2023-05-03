@@ -8,6 +8,7 @@
 #include <optional>
 #include <set>
 #include <type_traits>
+#include <variant>
 #include <vector>
 #include <QFile>
 #include <QJsonParseError>
@@ -141,7 +142,7 @@ namespace JsonDeserialise {
         } as;
     protected:
         DeserialisableBase(AsType _as) : anonymous(true), as(_as) {}
-        DeserialisableBase(QString name, AsType _as) : identifier(name), as(_as) {}
+        DeserialisableBase(const QString& name, AsType _as) : identifier(name), as(_as) {}
         DeserialisableBase(const DeserialisableBase&) = delete;
         DeserialisableBase& operator=(const DeserialisableBase&) = delete;
     public:
@@ -162,7 +163,7 @@ namespace JsonDeserialise {
 
     template<typename T = void, typename...Args>
     constexpr bool isValid() {
-        return std::is_same_v<T, void> ? true : std::is_base_of_v<DeserialisableBase, T> && isValid<Args...>();
+        return std::is_same_v<T, void> ? true : std::is_base_of_v<DeserialisableBase, T>&& isValid<Args...>();
     }
 
     template<class...Args>
@@ -375,7 +376,7 @@ namespace JsonDeserialise {
         bool& value;
     public:
         Boolean(bool& source) : DeserialisableBase(AsType::BOOLEAN), value(source) {}
-        Boolean(QString name, bool& source) : DeserialisableBase(name, AsType::BOOLEAN), value(source) {}
+        Boolean(const QString& name, bool& source) : DeserialisableBase(name, AsType::BOOLEAN), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString()) {
                 auto str = data.toString().toLower();
@@ -408,7 +409,7 @@ namespace JsonDeserialise {
         U& value;
     public:
         Integer(U& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
-        Integer(QString name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
+        Integer(const QString& name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toInt();
@@ -428,7 +429,7 @@ namespace JsonDeserialise {
         U& value;
     public:
         Integer(U& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
-        Integer(QString name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
+        Integer(const QString& name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toUInt();
@@ -451,7 +452,7 @@ namespace JsonDeserialise {
         U& value;
     public:
         Real(U& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
-        Real(QString name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
+        Real(const QString& name, U& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toDouble();
@@ -471,7 +472,7 @@ namespace JsonDeserialise {
         U& value;
     public:
         String(U& source) : DeserialisableBase(AsType::STRING), value(source) {}
-        String(QString name, U& source) : DeserialisableBase(name, AsType::STRING), value(source) {}
+        String(const QString& name, U& source) : DeserialisableBase(name, AsType::STRING), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (!data.isString() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
@@ -489,7 +490,7 @@ namespace JsonDeserialise {
     public:
         constexpr static AsType as = AsType(unsigned(AsType::STRING) & unsigned(AsType::NULLABLE));
         NullableString(U& source) : DeserialisableBase(as), value(source) {}
-        NullableString(QString name, U& source) : DeserialisableBase(name, as), value(source) {}
+        NullableString(const QString& name, U& source) : DeserialisableBase(name, as), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (!data.isString() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
@@ -558,17 +559,17 @@ namespace JsonDeserialise {
     public:
         constexpr static AsType as = AsType(unsigned(AsType::STRING) | unsigned(AsType::ARRAY_LIKE));
         StringArray(U& source) : DeserialisableBase(as), value(source) {}
-        StringArray(QString name, U& source) : DeserialisableBase(name, as), value(source) {}
+        StringArray(const QString& name, U& source) : DeserialisableBase(name, as), value(source) {}
 
         virtual std::enable_if_t<bool(choose_pushback<T, StringType>::value)> assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray())
-                if constexpr(choose_pushback<T, StringType>::value == ArrayPushBackWay::Push_Back)
+                if constexpr (choose_pushback<T, StringType>::value == ArrayPushBackWay::Push_Back)
                     value.push_back(StringConvertor<StringType>::convert(i.toString()));
-                else if constexpr(choose_pushback<T, StringType>::value == ArrayPushBackWay::Append)
+                else if constexpr (choose_pushback<T, StringType>::value == ArrayPushBackWay::Append)
                     value.append(StringConvertor<StringType>::convert(i.toString()));
-                else if constexpr(choose_pushback<T, StringType>::value == ArrayPushBackWay::Insert)
+                else if constexpr (choose_pushback<T, StringType>::value == ArrayPushBackWay::Insert)
                     value.insert(StringConvertor<StringType>::convert(i.toString()));
         }
         virtual QJsonValue to_json() const override {
@@ -586,7 +587,7 @@ namespace JsonDeserialise {
     public:
         constexpr static AsType as = AsType(unsigned(AsType::NULLABLE) | unsigned(AsType::STRING) | unsigned(AsType::ARRAY_LIKE));
         NullableStringArray(U& source) : DeserialisableBase(as), value(source) {}
-        NullableStringArray(QString name, U& source) : DeserialisableBase(name, as), value(source) {}
+        NullableStringArray(const QString& name, U& source) : DeserialisableBase(name, as), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
@@ -612,7 +613,7 @@ namespace JsonDeserialise {
     public:
         constexpr static AsType as = AsType(unsigned(AsType::STRING) | unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::LIMITED));
         LimitedStringArray(U& source) : DeserialisableBase(as), value(source) {}
-        LimitedStringArray(QString name, U& source) : DeserialisableBase(name, as), value(source) {}
+        LimitedStringArray(const QString& name, U& source) : DeserialisableBase(name, as), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
@@ -641,7 +642,7 @@ namespace JsonDeserialise {
     public:
         constexpr static AsType as = AsType(unsigned(AsType::NULLABLE) | unsigned(AsType::STRING) | unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::LIMITED));
         LimitedNullableStringArray(U& source) : DeserialisableBase(as), value(source) {}
-        LimitedNullableStringArray(QString name, U& source) : DeserialisableBase(name, as), value(source) {}
+        LimitedNullableStringArray(const QString& name, U& source) : DeserialisableBase(name, as), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
@@ -687,8 +688,8 @@ namespace JsonDeserialise {
         constexpr static AsType as = AsType::OBJECT;
         Object(T* _, WrappedMembers&...members) : DeserialisableBase(as), deserialiser(&members...) {}
         Object(T* _, WrappedMembers*...members) : DeserialisableBase(as), deserialiser(members...) {}
-        Object(QString name, T* _, WrappedMembers&...members) : DeserialisableBase(name, as), deserialiser(&members...) {}
-        Object(QString name, T* _, WrappedMembers*...members) : DeserialisableBase(name, as), deserialiser(members...) {}
+        Object(const QString& name, T* _, WrappedMembers&...members) : DeserialisableBase(name, as), deserialiser(&members...) {}
+        Object(const QString& name, T* _, WrappedMembers*...members) : DeserialisableBase(name, as), deserialiser(members...) {}
 
         virtual void assign(const QJsonValue& data) override {
             if (!data.isObject() && !data.isNull())
@@ -721,17 +722,17 @@ namespace JsonDeserialise {
     public:
         constexpr static AsType as = AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT));
         ObjectArray(T& source, ObjectType* object_ptr, Info<Members>&&...members) : DeserialisableBase(as), value(source), offset{ reinterpret_cast<size_t>(members.ptr)... }, names{ members.name... } {}
-        ObjectArray(QString name, T& source, ObjectType* object_ptr, Info<Members>&&...members) : DeserialisableBase(name, as), value(source), offset{ reinterpret_cast<size_t>(members.ptr)... }, names{ members.name... } {}
+        ObjectArray(const QString& name, T& source, ObjectType* object_ptr, Info<Members>&&...members) : DeserialisableBase(name, as), value(source), offset{ reinterpret_cast<size_t>(members.ptr)... }, names{ members.name... } {}
 
         virtual std::enable_if_t<bool(choose_pushback<T, ObjectType>::value)> assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
-                if constexpr(choose_pushback<T, ObjectType>::value == ArrayPushBackWay::Push_Back)
+                if constexpr (choose_pushback<T, ObjectType>::value == ArrayPushBackWay::Push_Back)
                     value.push_back(ObjectType());
-                else if constexpr(choose_pushback<T, ObjectType>::value == ArrayPushBackWay::Append)
+                else if constexpr (choose_pushback<T, ObjectType>::value == ArrayPushBackWay::Append)
                     value.append(ObjectType());
-                else if constexpr(choose_pushback<T, ObjectType>::value == ArrayPushBackWay::Insert)
+                else if constexpr (choose_pushback<T, ObjectType>::value == ArrayPushBackWay::Insert)
                     value.insert(ObjectType());
                 auto ptr = &value.back();
                 int nameCount = size, dataCount = size;
@@ -760,17 +761,17 @@ namespace JsonDeserialise {
         U& value;
     public:
         Array(U& source) : DeserialisableBase(AsType::ARRAY_LIKE), value(source) {}
-        Array(QString name, U& source) : DeserialisableBase(name, AsType::ARRAY_LIKE), value(source) {}
+        Array(const QString& name, U& source) : DeserialisableBase(name, AsType::ARRAY_LIKE), value(source) {}
 
         virtual std::enable_if_t<bool(choose_pushback<T, TrivialType>::value)> assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
-                if constexpr(choose_pushback<T, TrivialType>::value == ArrayPushBackWay::Push_Back)
+                if constexpr (choose_pushback<T, TrivialType>::value == ArrayPushBackWay::Push_Back)
                     value.push_back(TrivialType());
-                else if constexpr(choose_pushback<T, TrivialType>::value == ArrayPushBackWay::Append)
+                else if constexpr (choose_pushback<T, TrivialType>::value == ArrayPushBackWay::Append)
                     value.append(TrivialType());
-                else if constexpr(choose_pushback<T, TrivialType>::value == ArrayPushBackWay::Insert)
+                else if constexpr (choose_pushback<T, TrivialType>::value == ArrayPushBackWay::Insert)
                     value.insert(TrivialType());
                 Prototype deserialiser(value.back());
                 deserialiser.assign(i);
@@ -792,7 +793,7 @@ namespace JsonDeserialise {
         U& value;
     public:
         Nullable(U& source) : DeserialisableBase(AsType::NULLABLE), value(source) {}
-        Nullable(QString name, T& source) : DeserialisableBase(name, AsType::NULLABLE), value(source) {}
+        Nullable(const QString& name, T& source) : DeserialisableBase(name, AsType::NULLABLE), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isNull()) {
                 value = NullableHandler<TypeInNullable, U>::make_empty();
@@ -817,7 +818,7 @@ namespace JsonDeserialise {
         DeserialisableType<As> value;
     public:
         NonTrivial(U& source) : DeserialisableBase(AsType::NonTrivial), value(reinterpret_cast<As&>(source)) {}
-        NonTrivial(QString name, U& source) : DeserialisableBase(name, AsType::NonTrivial), value(name, reinterpret_cast<As&>(source)) {}
+        NonTrivial(const QString& name, U& source) : DeserialisableBase(name, AsType::NonTrivial), value(name, reinterpret_cast<As&>(source)) {}
         virtual void assign(const QJsonValue& data) override {
             value.assign(data);
         }
@@ -837,8 +838,8 @@ namespace JsonDeserialise {
     class DeserialisableObject : public DeserialisableBase {
         Object<ObjectType, DeserialisableType<typename MemberInfo::Type>...> serialiser;
     public:
-        DeserialisableObject(QString json_name, ObjectType& value) : DeserialisableBase(json_name, AsType::OBJECT), serialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...) {}
-        DeserialisableObject(ObjectType& value) : DeserialisableBase(AsType::OBJECT), serialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...) {}
+        DeserialisableObject(QString json_name, ObjectType& value) : DeserialisableBase(json_name, AsType::OBJECT), serialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset))...) {}
+        DeserialisableObject(ObjectType& value) : DeserialisableBase(AsType::OBJECT), serialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset))...) {}
         virtual void assign(const QJsonValue& data) override {
             serialiser.assign(data);
         }
@@ -890,7 +891,7 @@ namespace JsonDeserialise {
         }
         virtual QJsonValue to_json() const override {
             QJsonArray array;
-            for (const auto&[key_, value_] : value) {
+            for (const auto& [key_, value_] : value) {
                 KeyType key_value = key_;
                 ValueType value_value = value_;
                 DeserialisableType<KeyType> key_deserialiser(key_value);
@@ -912,6 +913,7 @@ namespace JsonDeserialise {
     public:
         MapArray(U& source, QString key_name) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name) {}
         MapArray(U& source, QString key_name, QString val_json_name) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name), val_name(val_json_name) {}
+
         virtual void assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
@@ -930,7 +932,7 @@ namespace JsonDeserialise {
         }
         virtual QJsonValue to_json() const override {
             QJsonArray array;
-            for (const auto&[key_, value_] : value) {
+            for (const auto& [key_, value_] : value) {
                 KeyType key_value = key_;
                 ValueType value_value = value_;
                 DeserialisableType<KeyType> key_deserialiser(key_value);
@@ -952,8 +954,8 @@ namespace JsonDeserialise {
         Object<T, DeserialisableType<typename MemberInfo::Type>...> serialiser;
         std::enable_if_t<std::is_base_of_v<Base, T>, DeserialisableType<Base>> base_serialiser;
     public:
-        DerivedObject(QString json_name, T& value) : DeserialisableBase(json_name, AsType::OBJECT), serialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...), base_serialiser(dynamic_cast<Base&>(value)) {}
-        DerivedObject(T& value) : DeserialisableBase(AsType::OBJECT), serialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...), base_serialiser(dynamic_cast<Base&>(value)) {}
+        DerivedObject(const QString& json_name, T& value) : DeserialisableBase(json_name, AsType::OBJECT), serialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset))...), base_serialiser(dynamic_cast<Base&>(value)) {}
+        DerivedObject(T& value) : DeserialisableBase(AsType::OBJECT), serialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset))...), base_serialiser(dynamic_cast<Base&>(value)) {}
         virtual void assign(const QJsonValue& data) override {
             serialiser.assign(data);
             base_serialiser.assign(data);
@@ -976,9 +978,10 @@ namespace JsonDeserialise {
         U& value;
         QString name[2];
     public:
-        Pair(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::OBJECT), value(source), name{name1, name2} {}
-        Pair(QString json_name, U& source, const QString& name1, const QString& name2) : DeserialisableBase(json_name, AsType::OBJECT), value(source), name{name1, name2} {}
-        virtual void assign(const QJsonValue& data) override {
+        Pair(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::OBJECT), value(source), name{ name1, name2 } {}
+        Pair(const QString& json_name, U& source, const QString& name1, const QString& name2) : DeserialisableBase(json_name, AsType::OBJECT), value(source), name{ name1, name2 } {}
+        
+		virtual void assign(const QJsonValue& data) override {
             if (!data.isObject() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
@@ -1008,17 +1011,17 @@ namespace JsonDeserialise {
         U& value;
         QString name[2];
     public:
-        PairArray(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::ARRAY_LIKE), value(source), name{name1, name2} {}
+        PairArray(U& source, const QString& name1, const QString& name2) : DeserialisableBase(AsType::ARRAY_LIKE), value(source), name{ name1, name2 } {}
 
         virtual std::enable_if_t<bool(choose_pushback<T, PairType>::value)> assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray()) {
-                if constexpr(choose_pushback<T, PairType>::value == ArrayPushBackWay::Push_Back)
+                if constexpr (choose_pushback<T, PairType>::value == ArrayPushBackWay::Push_Back)
                     value.push_back(PairType());
-                else if constexpr(choose_pushback<T, PairType>::value == ArrayPushBackWay::Append)
+                else if constexpr (choose_pushback<T, PairType>::value == ArrayPushBackWay::Append)
                     value.append(PairType());
-                else if constexpr(choose_pushback<T, PairType>::value == ArrayPushBackWay::Insert)
+                else if constexpr (choose_pushback<T, PairType>::value == ArrayPushBackWay::Insert)
                     value.insert(PairType());
                 PairType& pair = value.back();
                 DeserialisableType<PairType> deserialiser(pair, name[0], name[1]);
@@ -1035,39 +1038,103 @@ namespace JsonDeserialise {
         }
     };
 
-    template<typename Des, typename ConvertFunctor, typename DeconvertFunctor, typename StringType = QString>
+    template<typename Des, typename ConvertFunctor, typename DeconvertFunctor, typename BasicType = QString>
     struct Convertor {
-        using Type = DeserialisableType<StringType>;
+        using Type = DeserialisableType<BasicType>;
         using Target = std::decay_t<Des>;
-        using Source = std::decay_t<StringType>;
+        using Source = std::decay_t<BasicType>;
         std::function<ConvertFunctor> convertor;
         std::function<DeconvertFunctor> deconvertor;
         Convertor(ConvertFunctor convertor, DeconvertFunctor deconvertor) : convertor(convertor), deconvertor(deconvertor) {}
         template<typename OtherConvertFunctor, typename otherDeconvertFunctor>
-        Convertor(Convertor<Des, OtherConvertFunctor, otherDeconvertFunctor, StringType>&& other) : convertor(std::move(other.convertor)), deconvertor(std::move(other.deconvertor)) {}
+        Convertor(Convertor<Des, OtherConvertFunctor, otherDeconvertFunctor, BasicType>&& other) : convertor(std::move(other.convertor)), deconvertor(std::move(other.deconvertor)) {}
     };
 
-    template<int N, typename VarientType, typename...Varient_Convertor>
-    class Varient {};   //todo
-
-    template<typename Varient_Convertor>
-    class Varient<1, typename Varient_Convertor::Target, Varient_Convertor> : public DeserialisableBase {
-        using Type = typename Varient_Convertor::Type;
-        using Target = typename Varient_Convertor::Target;
+    template<typename Convertor>
+    class Extension : public DeserialisableBase {
+        using Type = typename Convertor::Type;
+        using Target = typename Convertor::Target;
         Target& value;
-        typename Varient_Convertor::Source tmp;
-        std::decay_t<Varient_Convertor> convertor;
-        typename Varient_Convertor::Type prototype;
+        typename Convertor::Source tmp;
+        std::decay_t<Convertor> convertor;
+        typename Convertor::Type prototype;
+        QString name;
     public:
-        Varient(Varient_Convertor& convertor, Target& source) : DeserialisableBase(AsType::STRING), value(source), convertor(convertor), prototype(tmp) {}
-        //Varient(Varient_Convertor&& convertor) : DeserialisableBase(AsType::STRING), convertor(convertor), prototype(tmp) {}
+        Extension(Convertor& convertor, Target& source) : DeserialisableBase(AsType::NonTrivial), value(source), convertor(convertor), prototype(tmp) {}
+        Extension(Convertor& convertor, const QString& json_name, Target& source) : DeserialisableBase(AsType::STRING), value(source), convertor(convertor), prototype(name, tmp) {}
+
         virtual void assign(const QJsonValue& data) override {
             prototype.assign(data);
             value = convertor.convertor(tmp);
         }
         virtual QJsonValue to_json() const override {
-            return StringConvertor<typename Varient_Convertor::Source>::deconvert(convertor.deconvertor(value));
+            tmp = convertor.deconvertor(value);
+            return prototype.to_json();
         }
+    };
+
+    template<int index, typename Tuple>
+    struct GetType : GetType<index - 1, typename Tuple::Next> {};
+
+    template<typename Tuple>
+    struct GetType<0, Tuple> {
+        using Type = typename Tuple::CurrentType;
+    };
+
+    template<typename Current, typename...Types>
+    struct StaticTuple {
+        Current& value;
+        using Next = StaticTuple<Types...>;
+        Next next;
+        using CurrentType = Current;
+
+        StaticTuple(Current& source, Types&... pack) : value(source), next(pack...) {}
+
+        template<int index>
+        inline typename GetType<index, StaticTuple>::Type& get() {
+            if constexpr (index == 0)
+                return value;
+            else
+                return next.template get<index - 1>();
+        }
+    };
+
+    template<typename Current>
+    struct StaticTuple<Current> {
+        Current& value;
+        using CurrentType = Current;
+
+        StaticTuple(Current& source) : value(source) {}
+
+        template<int index, typename = std::enable_if_t<index == 0>>
+        inline Current& get() {
+            return value;
+        }
+    };
+	
+    //Deductor = Extension<Convertor<int, ConvertFunctor, DeconvertFunctor, BasicType>>;
+    template<typename Deductor, typename ... Varient_Convertors>
+    class VarientObject : public DeserialisableBase {
+        int result = -1;
+        using Target = std::variant<typename Varient_Convertors::Target...>;
+        QString key_name;
+        Deductor deductor;
+        StaticTuple<Varient_Convertors...> convertors;
+        Target& value;
+    public:
+        VarientObject(const QString& key, Deductor& deduction, Varient_Convertors&... convertors, Target& source)
+            : DeserialisableBase(AsType::OBJECT), key_name(key), deductor(deduction), convertors(convertors...), value(source) {}
+        VarientObject(const QString& name, const QString& key, Deductor& deduction, Varient_Convertors&... convertors, Target& source)
+            : DeserialisableBase(name, AsType::OBJECT), key_name(key), deductor(deduction), convertors(convertors...), value(source) {}
+
+        virtual void assign(const QJsonValue& data) override {
+            if (!data.isObject() || !data.toObject().contains(key_name))
+                throw std::ios_base::failure("Type Unmatch!");
+			//TO DO
+        }
+        virtual QJsonValue to_json() const override {
+			//TO DO
+		}
     };
 
     template<typename Any>
