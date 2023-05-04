@@ -17,6 +17,7 @@ Based on Qt's Json Library, it convert json into various types through static de
 |MapArray|std::map\<KeyType, ValueType>|
 |Pair|std::pair\<KeyType, ValueType>|
 |NonTrivial|alignment same as BasicType|
+|DerivedObject|support inheritance|
 |Extension|BasicType to Any<br>(Experimental)|
 |VerientObject|Object to std::variant<br>(Experimental & Untested)|
 ## Usage
@@ -84,4 +85,22 @@ declare_object(Person,
 declare_object_map_deserialiser(namelist, "Key", holder);
 JsonDeserialise::JsonDeserialiser deserialiser(holder);
 deserialiser.deserialiseFile(FILENAME);
+```
+## Extension
+Example I:
+```c++
+enum class Type {
+    A, B, C
+};
+QString enum2str(Type);
+Type str2enum(const QString&);
+```
+```json
+"Type":"A"
+```
+```c++
+Type sample;
+declare_extension_deserialiser("Type", sample, holder, str2enum, enum2str);
+JsonDeserialise::JsonDeserialiser deserialiser(holder);
+deserialiser.deserialise("{\"Type\":\"A\"}");
 ```
