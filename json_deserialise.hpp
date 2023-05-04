@@ -1045,7 +1045,7 @@ namespace JsonDeserialise {
         using Source = std::decay_t<BasicType>;
         decltype(std::function(std::declval<ConvertFunctor>())) convertor;
         decltype(std::function(std::declval<DeconvertFunctor>())) deconvertor;
-        Convertor(ConvertFunctor convertor, DeconvertFunctor deconvertor) : convertor(convertor), deconvertor(deconvertor) {}
+        Convertor(ConvertFunctor& convertor, DeconvertFunctor& deconvertor) : convertor(convertor), deconvertor(deconvertor) {}
         template<typename OtherConvertFunctor, typename otherDeconvertFunctor>
         Convertor(Convertor<Des, OtherConvertFunctor, otherDeconvertFunctor, BasicType>&& other) : convertor(std::move(other.convertor)), deconvertor(std::move(other.deconvertor)) {}
     };
@@ -1344,7 +1344,7 @@ namespace JsonDeserialise {
 
 #define declare_top_deserialiser(data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name));
 #define declare_deserialiser(json_name, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), (data_name));
-#define declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor) JsonDeserialise::Extension var_name(JsonDeserialise::Convertor((convertor), (deconvertor)), json_name, data_name);
+#define declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor) JsonDeserialise::Extension var_name(JsonDeserialise::Convertor<decltype(data_name), decltype(convertor), decltype(deconvertor)>((convertor), (deconvertor)), json_name, data_name);
 #define declare_simple_map_deserialiser(data_name, key_name, val_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name, val_name);
 #define declare_object_map_deserialiser(data_name, key_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name);
 #define declare_pair_deserialiser(object_name, json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((object_name), (data_name), (json_name1), (json_name2));
