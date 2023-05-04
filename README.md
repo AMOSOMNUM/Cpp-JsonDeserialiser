@@ -15,6 +15,10 @@ Based on Qt's Json Library, it convert json into various types through static de
 |Array|std::vector\<T>、std::set\<T>、std::list\<T>、QList\<T>、QSet\<T> e.t.c.|
 |LimitedArray|T[N]、std::array\<T, N>|
 |MapArray|std::map\<KeyType, ValueType>|
+|Pair|std::pair\<KeyType, ValueType>|
+|NonTrivial|alignment same as BasicType|
+|Extension|BasicType to Any<br>(Experimental)|
+|VerientObject|Object to std::variant<br>(Experimental & Untested)|
 ## Usage
 ### 1. For Trivial Types
 ```c++
