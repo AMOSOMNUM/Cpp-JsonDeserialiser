@@ -1357,7 +1357,7 @@ namespace JsonDeserialise {
 #define object_member(object_type, member_name) JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name), JsonDeserialise::object_type##_##member_name, (offsetof(object_type, member_name))>
 #define declare_object(object_type, ...) template<> struct JsonDeserialise::Deserialisable<object_type> { using Type = DeserialisableObject<object_type, __VA_ARGS__>; };
 #define declare_class_with_json_constructor_and_serialiser(object_type) template<> struct JsonDeserialise::Deserialisable<object_type> { using Type = SelfDeserialisableObject<object_type>; };
-#define declare_map_with_key(container_type, key_type, value_type, key_name) const char key_type##_##value_name[] = key_name; template<> struct JsonDeserialise::Deserialisable<container_type<key_type, value_type>> { using Type = MapArray<container_type<key_type, value_type>, key_type, value_type, key_type##_##value_name>; };
+#define register_map_with_key(container_type, key_type, value_type, key_name) namespace JsonDeserialise { const char key_type##_##map_type##_##key_json_name[] = key_name; template<> struct Deserialisable<container_type<key_type, value_type>> { using Type = MapArray<container_type<key_type, value_type>, key_type, value_type, key_type##_##map_type##_##key_json_name>; };}
 #define declare_object_with_base_class(object_type, base_type, ...) template<> struct JsonDeserialise::Deserialisable<object_type> { using Type = DerivedObject<base_type, object_type, __VA_ARGS__>; };
 
 #endif // JSON_DESERIALISER_H
