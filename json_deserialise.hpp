@@ -1058,10 +1058,9 @@ namespace JsonDeserialise {
         mutable typename Convertor::Source tmp;
         std::decay_t<Convertor> convertor;
         typename Convertor::Type prototype;
-        QString name;
     public:
         Extension(Convertor&& convertor, Target& source) : DeserialisableBase(AsType::NonTrivial), value(source), convertor(convertor), prototype(tmp) {}
-        Extension(Convertor&& convertor, const QString& json_name, Target& source) : DeserialisableBase(AsType::STRING), value(source), convertor(convertor), prototype(name, tmp) {}
+        Extension(Convertor&& convertor, const QString& json_name, Target& source) : DeserialisableBase(json_name, AsType::STRING), value(source), convertor(convertor), prototype(tmp) {}
 
 		virtual void assign(const QJsonValue& data) override {
 			prototype.assign(data);
