@@ -911,7 +911,7 @@ namespace JsonDeserialise {
 		QString key;
 		std::optional<QString> val_name;
 	public:
-		MapArray(U& source, QString key_name) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name) {}
+		MapArray(U& source, QString key_name = QStringLiteral("key")) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name) {}
 		MapArray(U& source, QString key_name, QString val_json_name) : DeserialisableBase(AsType(unsigned(AsType::ARRAY_LIKE) | unsigned(AsType::OBJECT))), value(source), key(key_name), val_name(val_json_name) {}
 
 		virtual void assign(const QJsonValue& data) override {
