@@ -1180,9 +1180,9 @@ namespace JsonDeserialise {
 			FAM* machines[sizeof...(Varient_Convertors)] = { (new Assign(data, convertors.template get<pack>(), value))... };
 			if (result == -1)
 				throw std::ios_base::failure("Type Unmatch!");
+			machines[result]->run();
 			for (auto i : machines)
 				delete i;
-			machines[result]->run();
 		}
 		virtual QJsonValue to_json() const override {
 			QJsonObject object;
