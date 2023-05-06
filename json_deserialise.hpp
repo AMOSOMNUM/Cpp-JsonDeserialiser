@@ -503,7 +503,7 @@ namespace JsonDeserialise {
 			value = StringConvertor<U>::convert(data.toString());
 		}
 		virtual QJsonValue to_json() const override {
-			return StringConvertor<U>::convert(value);
+			return StringConvertor<U>::deconvert(value);
 		}
 	};
 
@@ -526,7 +526,7 @@ namespace JsonDeserialise {
 			}
 		}
 		virtual QJsonValue to_json() const override {
-			return value ? StringConvertor<StringType>::convert(*value) : QJsonValue();
+			return value ? StringConvertor<StringType>::deconvert(*value) : QJsonValue();
 		}
 	};
 
@@ -599,7 +599,7 @@ namespace JsonDeserialise {
 		virtual QJsonValue to_json() const override {
 			QJsonArray array;
 			for (const auto& i : value)
-				array.append(StringConvertor<StringType>::convert(i));
+				array.append(StringConvertor<StringType>::deconvert(i));
 			return array;
 		}
 	};
@@ -625,7 +625,7 @@ namespace JsonDeserialise {
 			QJsonArray array;
 			for (const auto& i : value)
 				if (i)
-					array.append(StringConvertor<StringType>::convert(*i));
+					array.append(StringConvertor<StringType>::deconvert(*i));
 			return array;
 		}
 	};
@@ -651,7 +651,7 @@ namespace JsonDeserialise {
 		virtual QJsonValue to_json() const override {
 			QJsonArray array;
 			for (const auto& i : value) {
-				QString str = StringConvertor<StringType>::convert(i);
+				QString str = StringConvertor<StringType>::deconvert(i);
 				if (!str.isEmpty())
 					array.append(str);
 			}
