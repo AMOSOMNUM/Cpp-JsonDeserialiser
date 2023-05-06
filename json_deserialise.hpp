@@ -1368,6 +1368,16 @@ namespace JsonDeserialise {
 	struct Deserialisable<double> {
 		using Type = Real<double>;
 	};
+
+	template<>
+	struct Deserialisable<const char*> {
+		using Type = String<char*>;
+	};
+
+	template<>
+	struct Deserialisable<const wchar_t*> {
+		using Type = String<wchar_t*>;
+	};
 }
 
 #define declare_top_deserialiser(data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name));
