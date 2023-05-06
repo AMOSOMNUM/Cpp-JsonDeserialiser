@@ -127,6 +127,18 @@ namespace JsonDeserialise {
 		static constexpr bool value = true;
 	};
 
+    template<>
+    struct is_nullable<char*> {
+        using Type = void;
+        static constexpr bool value = false;
+    };
+
+    template<>
+    struct is_nullable<wchar_t*> {
+        using Type = void;
+        static constexpr bool value = false;
+    };
+
 	template<typename T>
 	struct is_nullable<std::optional<T>> {
 		using Type = T;
