@@ -1177,9 +1177,9 @@ namespace JsonDeserialise {
 			if (!data.isObject() || !data.toObject().contains(deductor.identifier))
 				throw std::ios_base::failure("Type Unmatch!");
 			deductor.assign(data.toObject()[deductor.identifier]);
-			FAM* machines[sizeof...(Varient_Convertors)] = { (new Assign(data, convertors.template get<pack>(), value))... };
 			if (result == -1)
 				throw std::ios_base::failure("Type Unmatch!");
+			FAM* machines[sizeof...(Varient_Convertors)] = { (new Assign(data, convertors.template get<pack>(), value))... };
 			machines[result]->run();
 			for (auto i : machines)
 				delete i;
