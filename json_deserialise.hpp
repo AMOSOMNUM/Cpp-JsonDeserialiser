@@ -844,8 +844,8 @@ namespace JsonDeserialise {
         using Target = std::decay_t<T>;
         DeserialisableType<As> value;
     public:
-		NonTrivial(U& source) : DeserialisableBase(AsType::NonTrivial), value(reinterpret_cast<As&>(source)) {}
-		NonTrivial(const QString& name, U& source) : DeserialisableBase(name, AsType::NonTrivial), value(name, reinterpret_cast<As&>(source)) {}
+		NonTrivial(Target& source) : DeserialisableBase(AsType::NonTrivial), value(reinterpret_cast<As&>(source)) {}
+		NonTrivial(const QString& name, Target& source) : DeserialisableBase(name, AsType::NonTrivial), value(name, reinterpret_cast<As&>(source)) {}
 		virtual void assign(const QJsonValue& data) override {
 			value.assign(data);
 		}
