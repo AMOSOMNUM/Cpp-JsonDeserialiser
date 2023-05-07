@@ -430,11 +430,11 @@ namespace JsonDeserialise {
 
     template<typename T>
     class Integer<T, true, 4> : public DeserialisableBase {
-        using Target = unsigned;
-        unsigned& value;
+        using Target = int;
+        int& value;
     public:
-        Integer(unsigned& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
-        Integer(const QString& name, unsigned& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
+        Integer(int& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
+        Integer(const QString& name, int& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toInt();
@@ -450,11 +450,11 @@ namespace JsonDeserialise {
 
     template<typename T>
     class Integer<T, false, 4> : public DeserialisableBase {
-        using Target = std::decay_t<T>;
-        Target& value;
+        using Target = unsigned;
+        unsigned& value;
     public:
-        Integer(Target& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
-        Integer(const QString& name, Target& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
+        Integer(unsigned& source) : DeserialisableBase(AsType::INTEGER), value(source) {}
+        Integer(const QString& name, unsigned& source) : DeserialisableBase(name, AsType::INTEGER), value(source) {}
         virtual void assign(const QJsonValue& data) override {
             if (data.isString())
                 value = data.toString().toUInt();
