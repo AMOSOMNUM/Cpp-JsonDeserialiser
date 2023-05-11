@@ -491,8 +491,8 @@ namespace JsonDeserialise {
         }
     };
 
-    template<typename T>
-    class String : public DeserialisableBase {
+    template<typename T, size_t length = (unsigned long long)-1>
+    class String: public DeserialisableBase {
         using Target = std::decay_t<T>;
         Target& value;
     public:
@@ -506,6 +506,33 @@ namespace JsonDeserialise {
         virtual QJsonValue to_json() const override {
             return StringConvertor<Target>::deconvert(value);
         }
+    };
+
+    template<size_t length>
+    class String<char[length], length> : public DeserialisableBase {
+        using Target = char[length];
+        Target& value;
+    public:
+        String(Target& source) : DeserialisableBase(AsType::STRING), value(source) {}
+        String(const QString& name, Target& source) : DeserialisableBase(name, AsType::STRING), value(source) {}
+        virtual void assign(const QJsonValue& data) override {
+            if (!data.isString() && !data.isNull())
+                throw std::ios_base::failure("Type Unmatch!");
+            auto str = data.toString().toUtf8();
+            const char* c_str = str.constData();
+            size_t size = length < data.toString().length() ? length : data.toString().length();
+                value = strncpy(value, str, size);
+            value[size] = '\0';
+        }
+        virtual QJsonValue to_json() const override {
+            return StringConvertor<Target>::deconvert(value);
+        }
+    };
+
+    template<size_t length>
+    class String<char[length], 1> : public String<char*> {
+        String(char source[length]) : String<char*>(source) {}
+        String(const QString& name, char source[length]) : String<char*>(name, source) {}
     };
 
     template<typename T, typename StringType>
@@ -1572,6 +1599,11 @@ namespace JsonDeserialise {
 	template<>
 	struct Deserialisable<double> {
 		using Type = Real<double>;
+	};
+	
+	template<size_t length>
+	struct Deserialisable<char[length]> {
+		using Type = String<char[length], length>;
 	};
 
 	template<>
