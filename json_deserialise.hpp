@@ -521,7 +521,7 @@ namespace JsonDeserialise {
             auto str = data.toString().toUtf8();
             const char* c_str = str.constData();
             size_t size = length < data.toString().length() ? length : data.toString().length();
-                value = strncpy(value, str, size);
+                strncpy(value, c_str, size);
             value[size] = '\0';
         }
         virtual QJsonValue to_json() const override {
