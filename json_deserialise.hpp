@@ -28,7 +28,7 @@ namespace JsonDeserialise {
 		static inline char* convert(const QString& str) {
 			const auto& src = str.toUtf8();
 			char* des = new char[src.length() + 1];
-			strncpy(des, src, src.length());
+			strncpy(des, src.constData(), src.length());
 			des[src.length()] = '\0';
 			return des;
 		}
