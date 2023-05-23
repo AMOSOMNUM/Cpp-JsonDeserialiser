@@ -191,210 +191,152 @@ namespace JsonDeserialise {
 	}
 
 	template<class...Args>
-	class JsonSerialiser {
-		const DeserialisableBase* value[sizeof...(Args)];
-		const std::enable_if_t<isValid<Args...>(), bool> is_array;
-	private:
-		bool isArray() {
-			using AsType = DeserialisableBase::AsType;
-			if (sizeof...(Args) == 1)
-				return AsType(unsigned(value[0]->as) & unsigned(AsType::ARRAY_LIKE)) == AsType::ARRAY_LIKE && value[0]->anonymous;
-			return false;
-		}
-	public:
-		JsonSerialiser(const Args&...args) : value{ &args... }, is_array(isArray()) {}
+class JsonSerialiser {
+protected:
+    DeserialisableBase* value[sizeof...(Args)];
+    const std::enable_if_t<isValid<Args...>(), bool> is_array;
 
-		void serialise(QString filepath) const {
-			QFile file(filepath);
-			if (!file.open(QFile::WriteOnly))
-				throw std::ios_base::failure("Failed to Open File!");
-			file.write(serialise());
-			file.close();
-		}
+    bool isArray() {
+        using AsType = DeserialisableBase::AsType;
+        if (sizeof...(Args) == 1)
+            return AsType(unsigned(value[0]->as) & unsigned(AsType::ARRAY_LIKE)) == AsType::ARRAY_LIKE && value[0]->anonymous;
+        return false;
+    }
 
-		QByteArray serialise(bool compress = false) const {
-			if (is_array)
-				return serialise_array(compress);
-			QJsonDocument json;
-			QJsonObject obj;
-			for (auto i : value)
-				i->append(obj);
-			json.setObject(obj);
-			return json.toJson(QJsonDocument::JsonFormat(compress));
-		}
+    JsonSerialiser(Args*...args) : value{ args... }, is_array(isArray()) {}
+public:
+    JsonSerialiser(const Args&...args) : value{ &const_cast<Args&>(args)... }, is_array(isArray()) {}
+    virtual ~JsonSerialiser() {}
 
-		QByteArray serialise_array(bool compress = false) const {
-			QJsonDocument json;
-			QJsonArray array;
-			for (auto i : value)
-				i->append(array);
-			json.setArray(array);
-			return json.toJson(QJsonDocument::JsonFormat(compress));
-		}
+    void serialise(QString filepath) const {
+        QFile file(filepath);
+        if (!file.open(QFile::WriteOnly))
+            throw std::ios_base::failure("Failed to Open File!");
+        file.write(serialise());
+        file.close();
+    }
+    QByteArray serialise(bool compress = false) const {
+        if (is_array)
+            return serialise_array(compress);
+        QJsonDocument json;
+        QJsonObject obj;
+        for (auto i : value)
+            i->append(obj);
+        json.setObject(obj);
+        return json.toJson(QJsonDocument::JsonFormat(compress));
+    }
+    QByteArray serialise_array(bool compress = false) const {
+        QJsonDocument json;
+        QJsonArray array;
+        for (auto i : value)
+            i->append(array);
+        json.setArray(array);
+        return json.toJson(QJsonDocument::JsonFormat(compress));
+    }
+    QJsonValue serialise_to_json() const {
+        if (is_array) {
+            QJsonArray json;
+            for (auto i : value)
+                i->append(json);
+            return json;
+        }
+        QJsonObject json;
+        for (auto i : value)
+            i->append(json);
+        return json;
+    }
+    void serialise_to_file(QString filepath) const {
+        const auto data = serialise();
+        QFile file(filepath);
+        if (!file.open(QFile::WriteOnly))
+            throw std::ios_base::failure("Failed to Open File!");
+        file.write(data);
+        file.close();
+    }
+};
 
-		QJsonValue serialise_to_json() const {
-			if (is_array) {
-				QJsonArray json;
-				for (auto i : value)
-					i->append(json);
-				return json;
-			}
-			QJsonObject json;
-			for (auto i : value)
-				i->append(json);
-			return json;
-		}
+template<class...Args>
+class JsonDeserialiser : public JsonSerialiser<Args...> {
+    using Base = JsonSerialiser<Args...>;
+    mutable bool delete_after_used = false;
+public:
+    JsonDeserialiser(Args*...args) : Base{ args... } {}
+    JsonDeserialiser(Args&...args) : Base{ &args... } {}
+    virtual ~JsonDeserialiser() {
+        if (delete_after_used)
+            for (auto i : Base::value)
+                delete i;
+    }
 
-		void serialise_to_file(QString filepath) const {
-			const auto data = serialise();
-			QFile file(filepath);
-			if (!file.open(QFile::WriteOnly))
-				throw std::ios_base::failure("Failed to Open File!");
-			file.write(data);
-			file.close();
-		}
-	};
-
-	template<class...Args>
-	class JsonDeserialiser {
-		mutable bool delete_after_used = false;
-		DeserialisableBase* value[sizeof...(Args)];
-		const std::enable_if_t<isValid<Args...>(), bool> is_array;
-	private:
-		constexpr bool isArray() {
-			using AsType = DeserialisableBase::AsType;
-			if (sizeof...(Args) == 1)
-				return AsType(unsigned(value[0]->as) & unsigned(AsType::ARRAY_LIKE)) == AsType::ARRAY_LIKE && value[0]->anonymous;
-			return false;
-		}
-	public:
-		JsonDeserialiser(Args*...args) : value{ args... }, is_array(isArray()) {}
-		JsonDeserialiser(Args&...args) : value{ &args... }, is_array(isArray()) {}
-		~JsonDeserialiser() {
-			if (delete_after_used)
-				for (auto i : value)
-					delete i;
-		}
-		void clear() const {
-			delete_after_used = true;
-		}
-
-		void serialise(QString filepath) const {
-			QFile file(filepath);
-			if (!file.open(QFile::WriteOnly))
-				throw std::ios_base::failure("Failed to Open File!");
-			file.write(serialise());
-			file.close();
-		}
-
-		QByteArray serialise(bool compress = false) const {
-			if (is_array)
-				return serialise_array(compress);
-			QJsonDocument json;
-			QJsonObject obj;
-			for (auto i : value)
-				i->append(obj);
-			json.setObject(obj);
-			return json.toJson(QJsonDocument::JsonFormat(compress));
-		}
-
-		QByteArray serialise_array(bool compress = false) const {
-			QJsonDocument json;
-			QJsonArray array;
-			for (auto i : value)
-				i->append(array);
-			json.setArray(array);
-			return json.toJson(QJsonDocument::JsonFormat(compress));
-		}
-
-		QJsonValue serialise_to_json() const {
-			if (is_array) {
-				auto json = QJsonArray();
-				for (auto i : value)
-					i->append(json);
-				return json;
-			}
-			auto json = QJsonObject();
-			for (auto i : value)
-				i->append(json);
-			return json;
-		}
-
-		void serialise_to_file(QString filepath) const {
-			const auto data = serialise();
-			QFile file(filepath);
-			if (!file.open(QFile::WriteOnly))
-				throw std::ios_base::failure("Failed to Open File!");
-			file.write(data);
-			file.close();
-		}
-
-		void deserialiseFile(QString filepath) {
-			QFile file(filepath);
-			if (!file.open(QFile::ReadOnly))
-				throw std::ios_base::failure("Failed to Open File!");
-			QJsonParseError parser;
-			QJsonDocument data = QJsonDocument::fromJson(file.readAll(), &parser);
-			if (parser.error != QJsonParseError::NoError)
-				throw std::ios_base::failure("JSON Parsing Failed!");
-			if (data.isNull() || data.isEmpty())
-				return;
-			if (data.isArray()) {
-				auto json_array = data.array();
-				deserialise_array(json_array);
-			}
-			else {
-				auto json_object = data.object();
-				deserialise(json_object);
-			}
-			file.close();
-		}
-		void deserialise(const QByteArray& json) {
-			QJsonParseError parser;
-			QJsonDocument data = QJsonDocument::fromJson(json, &parser);
-			if (parser.error != QJsonParseError::NoError)
-				throw std::ios_base::failure("JSON Parsing Failed!");
-			if (data.isNull() || data.isEmpty())
-				return;
-			if (is_array) {
-				if (data.isArray())
-					return deserialise_array(data.array());
-				else
-					throw std::ios_base::failure("JSON Parsing Failed!");
-			}
-			auto json_object = data.object();
-			deserialise(json_object);
-		}
-		void deserialise(const QJsonObject& object) {
-			constexpr int size = sizeof...(Args);
-			int count = 0;
-			for (auto i : value) {
-				count++;
-				if (i->anonymous) {
-					i->assign(object);
-					break;
-				}
-				else
-					if (object.contains(i->identifier))
-						i->assign(object[i->identifier]);
-			}
-			if (count != size)
-				throw std::ios_base::failure("JSON Structure Incompatible!");
-		}
-		void deserialise_array(const QJsonArray& json) {
-			constexpr int size = sizeof...(Args);
-			if ((unsigned(value[0]->as) & unsigned(DeserialisableBase::AsType::ARRAY_LIKE)) == unsigned(DeserialisableBase::AsType::ARRAY_LIKE) && size == 1) {
-				value[0]->assign(json);
-				return;
-			}
-			for (auto i : value)
-				if (!i->anonymous)
-					throw std::ios_base::failure("JSON Parsing Failed!");
-			int count = 0;
-			for (const auto& i : json)
-				value[count++]->assign(i);
-		}
-	};
+    void clear() const {
+        delete_after_used = true;
+    }
+    void deserialiseFile(QString filepath) {
+        QFile file(filepath);
+        if (!file.open(QFile::ReadOnly))
+            throw std::ios_base::failure("Failed to Open File!");
+        QJsonParseError parser;
+        QJsonDocument data = QJsonDocument::fromJson(file.readAll(), &parser);
+        if (parser.error != QJsonParseError::NoError)
+            throw std::ios_base::failure("JSON Parsing Failed!");
+        if (data.isNull() || data.isEmpty())
+            return;
+        if (data.isArray()) {
+            auto json_array = data.array();
+            deserialise_array(json_array);
+        }
+        else {
+            auto json_object = data.object();
+            deserialise(json_object);
+        }
+        file.close();
+    }
+    void deserialise(const QByteArray& json) {
+        QJsonParseError parser;
+        QJsonDocument data = QJsonDocument::fromJson(json, &parser);
+        if (parser.error != QJsonParseError::NoError)
+            throw std::ios_base::failure("JSON Parsing Failed!");
+        if (data.isNull() || data.isEmpty())
+            return;
+        if (Base::is_array) {
+            if (data.isArray())
+                return deserialise_array(data.array());
+            else
+                throw std::ios_base::failure("JSON Parsing Failed!");
+        }
+        auto json_object = data.object();
+        deserialise(json_object);
+    }
+    void deserialise(const QJsonObject& object) {
+        constexpr int size = sizeof...(Args);
+        int count = 0;
+        for (auto i : Base::value) {
+            count++;
+            if (i->anonymous) {
+                i->assign(object);
+                break;
+            }
+            else
+                if (object.contains(i->identifier))
+                    i->assign(object[i->identifier]);
+        }
+        if (count != size)
+            throw std::ios_base::failure("JSON Structure Incompatible!");
+    }
+    void deserialise_array(const QJsonArray& json) {
+        constexpr int size = sizeof...(Args);
+        if ((unsigned(Base::value[0]->as) & unsigned(DeserialisableBase::AsType::ARRAY_LIKE)) == unsigned(DeserialisableBase::AsType::ARRAY_LIKE) && size == 1) {
+            Base::value[0]->assign(json);
+            return;
+        }
+        for (auto i : Base::value)
+            if (!i->anonymous)
+                throw std::ios_base::failure("JSON Parsing Failed!");
+        int count = 0;
+        for (const auto& i : json)
+            Base::value[count++]->assign(i);
+    }
+};
 
 	class Boolean : public DeserialisableBase {
         using Target = bool;
