@@ -1169,6 +1169,50 @@ namespace JsonDeserialise {
         }
     };
 
+	template<typename Function>
+	struct ArgTypeDeduction {
+    	using Type = typename ArgTypeDeduction<decltype(&Function::operator())>::Type;
+	};
+
+	template<typename R, class C, typename Arg>
+	struct ArgTypeDeduction<R(C::*)(Arg)const> {
+    	using Type = Arg;
+	};
+
+	template<typename Des, typename ConvertFunctor , typename BasicType = std::decay_t<typename ArgTypeDeduction<decltype(std::function(std::declval<ConvertFunctor>()))>::Type>>
+	struct OneDirectionConvertor {
+    	using Type = BasicType;
+    	using Target = std::decay_t<Des>;
+    	using Source = std::decay_t<BasicType>;
+    	decltype(std::function(std::declval<ConvertFunctor>())) convertor;
+    	OneDirectionConvertor(ConvertFunctor& convertor) : convertor(convertor) {}
+    	template<typename OtherConvertFunctor>
+    	OneDirectionConvertor(OneDirectionConvertor<Des, OtherConvertFunctor, BasicType>&& other) : convertor(std::move(other.convertor)) {}
+	};
+
+	template<typename Convertor>
+	class OneDirectionExtension : public DeserialisableBase {
+	public:
+    	using Type = DeserialisableType<typename Convertor::Type>;
+    	using Target = typename Convertor::Target;
+	private:
+    	Target& value;
+    	mutable typename Remove_Const_Of_C_Style<typename Convertor::Source>::Type tmp;
+    	std::decay_t<Convertor> convertor;
+    	Type prototype;
+	public:
+    	OneDirectionExtension(Convertor&& convertor, Target& source) : DeserialisableBase(AsType::NonTrivial), value(source), convertor(convertor), prototype(tmp) {}
+    	OneDirectionExtension(Convertor&& convertor, const QString& json_name, Target& source) : DeserialisableBase(json_name, AsType::STRING), value(source), convertor(convertor), prototype(tmp) {}
+
+    	virtual void assign(const QJsonValue& data) override {
+        	prototype.assign(data);
+        	value = convertor.convertor(tmp);
+    	}
+    	virtual QJsonValue to_json() const override {
+        	throw std::ios_base::failure("Serialisation Unsupportted!");
+    	}
+	};
+
 	template<int index, typename Tuple>
 	struct GetType : GetType<index - 1, typename Tuple::Next> {};
 
@@ -1620,6 +1664,7 @@ namespace JsonDeserialise {
 #define declare_top_deserialiser(data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name));
 #define declare_deserialiser(json_name, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), (data_name));
 #define declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor) JsonDeserialise::Extension var_name(JsonDeserialise::Convertor<decltype(data_name), decltype(convertor), decltype(deconvertor)>((convertor), (deconvertor)), json_name, data_name);
+#define declare_one_direction_extension_deserialiser(json_name, data_name, var_name, convertor) JsonDeserialise::OneDirectionExtension var_name(JsonDeserialise::OneDirectionConvertor<decltype(data_name), decltype(convertor)>((convertor)), json_name, data_name);
 #define declare_simple_map_deserialiser(data_name, key_name, val_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name, val_name);
 #define declare_object_map_deserialiser(data_name, key_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name);
 #define declare_pair_deserialiser(object_name, json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((object_name), (data_name), (json_name1), (json_name2));
