@@ -1612,6 +1612,7 @@ public:
 #define declare_pair_deserialiser(object_name, json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((object_name), (data_name), (json_name1), (json_name2));
 #define declare_pair_array_deserialiser(json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name), (json_name1), (json_name2));
 #define declare_serialiser(json_name, data_name, var_name) const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), const_cast<std::decay_t<decltype(data_name)>&>(data_name));
+#define declare_top_serialiser(data_name, var_name) const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(const_cast<std::decay_t<decltype(data_name)>&>(data_name));
 #define declare_object_deserialiser(json_name, object_type, var_name, ...) JsonDeserialise::Object var_name(QStringLiteral(json_name), (object_type*)(nullptr), __VA_ARGS__);
 #define array_object_member(object_type, json_name, member_name) JsonDeserialise::Info(json_name, &((object_type*)nullptr)->member_name)
 #define declare_object_array(object_type, data_name, var_name, ...) JsonDeserialise::ObjectArray var_name(data_name, (object_type*)nullptr, __VA_ARGS__);
