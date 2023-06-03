@@ -1447,6 +1447,19 @@ public:
         }
     };
 
+    struct JSONWrap : public DeserialisableBase {
+        QJsonValue& value;
+        JSONTypeWrap(QJsonValue& src) : DeserialisableBase(AsType::NonTrivial), value(src) {}
+        JSONTypeWrap(const QString& name, QJsonValue& src) : DeserialisableBase(name, AsType::NonTrivial), value(src) {}
+
+        virtual void assign(const QJsonValue& data) override {
+            value = data;
+        }
+        virtual QJsonValue to_json() const override {
+            return value;
+        }
+    };
+
 	template<typename Any>
 	struct _Deserialisable<Any, false, -1, void, -1, void, -1> {
 		using Type = _DeserialisableType<Any, false, -1, void, is_nullable<Any>::value, typename is_nullable<Any>::Type, -1>;
@@ -1566,6 +1579,11 @@ public:
 	struct Deserialisable<std::pair<First, Second>> {
 		using Type = Pair<std::pair<First, Second>, First, Second>;
 	};
+
+    template<>
+    struct Deserialisable<QJsonValue> {
+        using Type = JSONWrap;
+    };
 
 	template<>
 	struct Deserialisable<bool> {
