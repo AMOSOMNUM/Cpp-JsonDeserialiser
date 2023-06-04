@@ -489,7 +489,7 @@ public:
             if (!data.isString() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             if (!data.isNull()) {
-                if (NullableHandler<StringType, T>::value)
+                if constexpr(NullableHandler<StringType, T>::value)
                     value = NullableHandler<StringType, T>::convert(StringConvertor<StringType>::convert(data.toString()));
                 else
                     value = StringConvertor<StringType>::convert(data.toString());
