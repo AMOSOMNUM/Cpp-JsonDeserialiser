@@ -31,6 +31,12 @@ JsonDeserialise::JsonDeserialiser deserialiser(a_holder, b_holder);
 deserialiser.deserialiseFile(FILENAME);
 ```
 ### 2.For Normal struct/class
+```json
+{
+    "A":"TypeAData",
+    "B":"TypeBData"
+}
+```
 ```c++
 class Sample {
     TypeA a;
@@ -56,7 +62,6 @@ deserialiser.deserialiseFile(FILENAME);
 ```
 ### 3.For Map(that is embedded)
 ```json
-//For Json:
 {
     "Key":1,
     "Num":114514,
