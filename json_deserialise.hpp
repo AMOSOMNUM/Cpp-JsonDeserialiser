@@ -1449,8 +1449,8 @@ public:
 
     struct JSONWrap : public DeserialisableBase {
         QJsonValue& value;
-        JSONTypeWrap(QJsonValue& src) : DeserialisableBase(AsType::NonTrivial), value(src) {}
-        JSONTypeWrap(const QString& name, QJsonValue& src) : DeserialisableBase(name, AsType::NonTrivial), value(src) {}
+        JSONWrap(QJsonValue& src) : DeserialisableBase(AsType::NonTrivial), value(src) {}
+        JSONWrap(const QString& name, QJsonValue& src) : DeserialisableBase(name, AsType::NonTrivial), value(src) {}
 
         virtual void assign(const QJsonValue& data) override {
             value = data;
