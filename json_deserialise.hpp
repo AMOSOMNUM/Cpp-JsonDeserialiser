@@ -208,13 +208,6 @@ public:
     JsonSerialiser(const Args&...args) : value{ &const_cast<Args&>(args)... }, is_array(isArray()) {}
     virtual ~JsonSerialiser() {}
 
-    void serialise(QString filepath) const {
-        QFile file(filepath);
-        if (!file.open(QFile::WriteOnly))
-            throw std::ios_base::failure("Failed to Open File!");
-        file.write(serialise());
-        file.close();
-    }
     QByteArray serialise(bool compress = false) const {
         if (is_array)
             return serialise_array(compress);
@@ -245,7 +238,7 @@ public:
             i->append(json);
         return json;
     }
-    void serialise_to_file(QString filepath) const {
+    void serialise_to_file(const QString& filepath) const {
         const auto data = serialise();
         QFile file(filepath);
         if (!file.open(QFile::WriteOnly))
@@ -271,7 +264,7 @@ public:
     void clear() const {
         delete_after_used = true;
     }
-    void deserialiseFile(QString filepath) {
+    void deserialiseFile(const QString& filepath) {
         QFile file(filepath);
         if (!file.open(QFile::ReadOnly))
             throw std::ios_base::failure("Failed to Open File!");
