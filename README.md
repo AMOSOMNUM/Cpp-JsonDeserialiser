@@ -38,7 +38,7 @@ deserialiser.deserialiseFile(FILENAME);
 }
 ```
 ```c++
-class Sample {
+struct Sample {
     TypeA a;
     TypeB b;
     ......
@@ -60,6 +60,8 @@ declare_top_deserialiser(s, holder);
 JsonDeserialise::JsonDeserialiser deserialiser(holder);
 deserialiser.deserialiseFile(FILENAME);
 ```
+#### For container
+
 ### 3.For Map(that is embedded)
 ```json
 {
@@ -70,7 +72,7 @@ deserialiser.deserialiseFile(FILENAME);
 ```
 ```c++
 //if you have a class like:
-struct Person{
+struct Person {
     int num;
     QString name;
 };
