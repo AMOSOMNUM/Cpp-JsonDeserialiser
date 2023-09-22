@@ -1119,18 +1119,18 @@ public:
 	};
 
 	template<typename Des, typename ConvertFunctor , typename BasicType = std::decay_t<typename ArgTypeDeduction<decltype(std::function(std::declval<ConvertFunctor>()))>::Type>>
-	struct OneDirectionConvertor {
+	struct DeserialiseOnlyConvertor {
     	using Type = BasicType;
     	using Target = std::decay_t<Des>;
     	using Source = std::decay_t<BasicType>;
     	decltype(std::function(std::declval<ConvertFunctor>())) convertor;
-    	OneDirectionConvertor(ConvertFunctor& convertor) : convertor(convertor) {}
+    	DeserialiseOnlyConvertor(ConvertFunctor& convertor) : convertor(convertor) {}
     	template<typename OtherConvertFunctor>
-    	OneDirectionConvertor(OneDirectionConvertor<Des, OtherConvertFunctor, BasicType>&& other) : convertor(std::move(other.convertor)) {}
+    	DeserialiseOnlyConvertor(DeserialiseOnlyConvertor<Des, OtherConvertFunctor, BasicType>&& other) : convertor(std::move(other.convertor)) {}
 	};
 
 	template<typename Convertor>
-	class OneDirectionExtension : public DeserialisableBase {
+	class DeserialiseOnlyExtension : public DeserialisableBase {
 	public:
     	using Type = DeserialisableType<typename Convertor::Type>;
     	using Target = typename Convertor::Target;
@@ -1140,8 +1140,8 @@ public:
     	std::decay_t<Convertor> convertor;
     	Type prototype;
 	public:
-    	OneDirectionExtension(Convertor&& convertor, Target& source) : DeserialisableBase(AsType::NonTrivial), value(source), convertor(convertor), prototype(tmp) {}
-    	OneDirectionExtension(Convertor&& convertor, const QString& json_name, Target& source) : DeserialisableBase(json_name, AsType::STRING), value(source), convertor(convertor), prototype(tmp) {}
+    	DeserialiseOnlyExtension(Convertor&& convertor, Target& source) : DeserialisableBase(AsType::NonTrivial), value(source), convertor(convertor), prototype(tmp) {}
+    	DeserialiseOnlyExtension(Convertor&& convertor, const QString& json_name, Target& source) : DeserialisableBase(json_name, AsType::STRING), value(source), convertor(convertor), prototype(tmp) {}
 
     	virtual void assign(const QJsonValue& data) override {
         	prototype.assign(data);
@@ -1151,6 +1151,41 @@ public:
         	throw std::ios_base::failure("Serialisation Unsupportted!");
     	}
 	};
+
+    template<typename T, typename ConvertFunctor, typename Des = std::decay_t<decltype(std::declval<ConvertFunctor>()(std::declval<T>()))>>
+    struct SerialiseOnlyConvertor {
+        using Type = std::decay_t<T>;
+        using Target = Des;
+        using Source = std::decay_t<T>;
+        decltype(std::function(std::declval<ConvertFunctor>())) convertor;
+        SerialiseOnlyConvertor(ConvertFunctor& convertor) : convertor(convertor) {}
+        template<typename OtherConvertFunctor>
+        SerialiseOnlyConvertor(DeserialiseOnlyConvertor<T, OtherConvertFunctor, Des>&& other) : convertor(std::move(other.convertor)) {}
+    };
+
+    template<typename Convertor>
+    class SerialiseOnlyExtension : public DeserialisableBase {
+    public:
+        using Type = DeserialisableType<typename Convertor::Target>;
+        using Target = typename Convertor::Target;
+        using Source = typename Convertor::Type;
+    private:
+        const Source& src;
+        mutable Target value;
+        std::decay_t<Convertor> convertor;
+        Type prototype;
+    public:
+        SerialiseOnlyExtension(Convertor&& convertor, const Source& source) : DeserialisableBase(AsType::NonTrivial), src(source), convertor(convertor), prototype(value) {}
+        SerialiseOnlyExtension(Convertor&& convertor, const QString& json_name, const Source& source) : DeserialisableBase(json_name, AsType::STRING), src(source), convertor(convertor), prototype(value) {}
+
+        virtual void assign(const QJsonValue& data) override {
+            throw std::ios_base::failure("Deserialisation Unsupportted!");
+        }
+        virtual QJsonValue to_json() const override {
+            value = convertor.convertor(src);
+            return prototype.to_json();
+        }
+    };
 
 	template<int index, typename Tuple>
 	struct GetType : GetType<index - 1, typename Tuple::Next> {};
@@ -1624,7 +1659,8 @@ public:
 #define declare_serialiser(json_name, data_name, var_name) const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), const_cast<std::decay_t<decltype(data_name)>&>(data_name));
 #define declare_top_serialiser(data_name, var_name) const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(const_cast<std::decay_t<decltype(data_name)>&>(data_name));
 #define declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor) JsonDeserialise::Extension var_name(JsonDeserialise::Convertor<decltype(data_name), decltype(convertor), decltype(deconvertor)>((convertor), (deconvertor)), json_name, data_name);
-#define declare_one_direction_extension_deserialiser(json_name, data_name, var_name, convertor) JsonDeserialise::OneDirectionExtension var_name(JsonDeserialise::OneDirectionConvertor<decltype(data_name), decltype(convertor)>((convertor)), json_name, data_name);
+#define declare_one_direction_extension_deserialiser(json_name, data_name, var_name, convertor) JsonDeserialise::DeserialiseOnlyExtension var_name(JsonDeserialise::DeserialiseOnlyConvertor<decltype(data_name), decltype(convertor)>((convertor)), json_name, data_name);
+#define declare_one_direction_extension_serialiser(json_name, data_name, var_name, convertor) JsonDeserialise::SerialiseOnlyExtension var_name(JsonDeserialise::SerialiseOnlyConvertor<decltype(data_name), decltype(convertor)>((convertor)), json_name, data_name);
 #define declare_simple_map_deserialiser(data_name, key_name, val_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name, val_name);
 #define declare_object_map_deserialiser(data_name, key_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name);
 #define declare_pair_deserialiser(object_name, json_name1, json_name2, data_name, var_name) JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((object_name), (data_name), (json_name1), (json_name2));
