@@ -312,6 +312,8 @@ public:
             else
                 if (object.contains(i->identifier))
                     i->assign(object[i->identifier]);
+                else
+                    throw std::ios_base::failure("JSON Structure Incompatible!");
         }
         if (count != size)
             throw std::ios_base::failure("JSON Structure Incompatible!");
