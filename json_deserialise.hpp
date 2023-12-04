@@ -196,23 +196,25 @@ class JsonDeserialiser {
     } data;
     const int complexity;
     const bool is_array;
-    mutable bool delete_after_used = false;
+    const bool delete_after_used;
 
 public:
     template <typename First, typename Second, typename... Args>
     JsonDeserialiser(First* first, Second* second, Args*... args)
         : data((new FixedArray<sizeof...(Args) + 2>{first, second, args...})->arr),
-          complexity(sizeof...(Args) + 2), is_array(false) {}
+          complexity(sizeof...(Args) + 2), is_array(false), delete_after_used(true) {}
     template <typename First, typename Second, typename... Args>
     JsonDeserialiser(First& first, Second& second, Args&... args)
         : data((new FixedArray<sizeof...(Args) + 2>{&first, &second, &args...})->arr),
-          complexity(sizeof...(Args) + 2), is_array(false) {}
+          complexity(sizeof...(Args) + 2), is_array(false), delete_after_used(false) {}
     JsonDeserialiser(DeserialisableBase* front)
         : data(front), complexity(0),
-          is_array(uint8_t(front->as) & uint8_t(DeserialisableBase::AsType::ARRAY_LIKE)) {}
+          is_array(uint8_t(front->as) & uint8_t(DeserialisableBase::AsType::ARRAY_LIKE)), 
+          delete_after_used(true) {}
     JsonDeserialiser(DeserialisableBase& front)
         : data(&front), complexity(0),
-          is_array(uint8_t(front.as) & uint8_t(DeserialisableBase::AsType::ARRAY_LIKE)) {}
+          is_array(uint8_t(front.as) & uint8_t(DeserialisableBase::AsType::ARRAY_LIKE)),
+          delete_after_used(false) {}
     ~JsonDeserialiser() {
         if (complexity) {
             if (delete_after_used)
@@ -223,9 +225,6 @@ public:
             delete data.front;
     }
 
-    void clear() const {
-        delete_after_used = true;
-    }
     void deserialiseFile(const QString& filepath) {
         QFile file(filepath);
         if (!file.open(QFile::ReadOnly))
@@ -692,12 +691,7 @@ public:
     constexpr static AsType as = AsType::OBJECT;
 
     template <typename... WrappedMembers>
-    Object(T* _, WrappedMembers&... members) : DeserialisableBase(as), deserialiser(&members...) {}
-    template <typename... WrappedMembers>
     Object(T* _, WrappedMembers*... members) : DeserialisableBase(as), deserialiser(members...) {}
-    template <typename... WrappedMembers>
-    Object(const QString& name, T* _, WrappedMembers&... members)
-        : DeserialisableBase(name, as), deserialiser(&members...) {}
     template <typename... WrappedMembers>
     Object(const QString& name, T* _, WrappedMembers*... members)
         : DeserialisableBase(name, as), deserialiser(members...) {}
@@ -710,9 +704,6 @@ public:
     }
     virtual QJsonValue to_json() const override {
         return deserialiser.serialise_to_json();
-    }
-    inline void clear() const {
-        deserialiser.clear();
     }
 };
 
@@ -755,7 +746,6 @@ public:
             int nameCount = size, dataCount = size;
             Prototype deserialiser((ObjectType*)nullptr, new DeserialisableType<Members>(names[--nameCount], *reinterpret_cast<Members*>(reinterpret_cast<uint8_t*>(ptr) + offset[--dataCount]))...);
             deserialiser.assign(i);
-            deserialiser.clear();
         }
     }
     virtual QJsonValue to_json() const override {
@@ -763,9 +753,8 @@ public:
         for (const auto& i : value) {
             const auto ptr = &i;
             int nameCount = size, dataCount = size;
-            const Prototype serialiser((ObjectType*)nullptr, new DeserialisableType<Members>(names[--nameCount], const_cast<Members&>(*reinterpret_cast<const Members*>(reinterpret_cast<const uint8_t*>(ptr) + offset[--dataCount])))...);
-            array.append(serialiser.to_json());
-            serialiser.clear();
+            const Prototype deserialiser((ObjectType*)nullptr, new DeserialisableType<Members>(names[--nameCount], const_cast<Members&>(*reinterpret_cast<const Members*>(reinterpret_cast<const uint8_t*>(ptr) + offset[--dataCount])))...);
+            array.append(deserialiser.to_json());
         }
         return array;
     }
@@ -821,8 +810,8 @@ public:
             return;
         }
         TypeInNullable tmp;
-        DeserialisableType<TypeInNullable> serialiser(tmp);
-        serialiser.assign(data);
+        DeserialisableType<TypeInNullable> deserialiser(tmp);
+        deserialiser.assign(data);
         value = NullableHandler<TypeInNullable, Target>::convert(tmp);
     }
     virtual QJsonValue to_json() const override {
@@ -862,24 +851,21 @@ struct ReinforcedInfo {
 template <typename ObjectType, typename... MemberInfo>
 class DeserialisableObject : public DeserialisableBase {
     using Target = ObjectType;
-    Object<ObjectType> serialiser;
+    Object<ObjectType> deserialiser;
 
 public:
     DeserialisableObject(QString json_name, ObjectType& value)
-        : DeserialisableBase(json_name, AsType::OBJECT), serialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...)
+        : DeserialisableBase(json_name, AsType::OBJECT), deserialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...)
     {}
     DeserialisableObject(ObjectType& value)
         : DeserialisableBase(AsType::OBJECT),
-          serialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...)
+          deserialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...)
     {}
     virtual void assign(const QJsonValue& data) override {
-        serialiser.assign(data);
+        deserialiser.assign(data);
     }
     virtual QJsonValue to_json() const override {
-        return serialiser.to_json();
-    }
-    ~DeserialisableObject() {
-        serialiser.clear();
+        return deserialiser.to_json();
     }
 };
 
@@ -990,28 +976,25 @@ public:
 template <class Base, class T, typename... MemberInfo>
 class DerivedObject : public DeserialisableBase {
     using Target = T;
-    Object<T> serialiser;
-    std::enable_if_t<std::is_base_of_v<Base, T>, DeserialisableType<Base>> base_serialiser;
+    Object<T> deserialiser;
+    std::enable_if_t<std::is_base_of_v<Base, T>, DeserialisableType<Base>> base_deserialiser;
 
 public:
     DerivedObject(const QString& json_name, T& value)
-        : DeserialisableBase(json_name, AsType::OBJECT), serialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>( MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...), base_serialiser(static_cast<Base&>(value)) {}
+        : DeserialisableBase(json_name, AsType::OBJECT), deserialiser(json_name, &value, new DeserialisableType<typename MemberInfo::Type>( MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...), base_deserialiser(static_cast<Base&>(value)) {}
     DerivedObject(T& value)
         : DeserialisableBase(AsType::OBJECT),
-          serialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...), base_serialiser(static_cast<Base&>(value)) {}
+          deserialiser(&value, new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)*((uint8_t*)(&value) + MemberInfo::offset))...), base_deserialiser(static_cast<Base&>(value)) {}
     virtual void assign(const QJsonValue& data) override {
-        serialiser.assign(data);
-        base_serialiser.assign(data);
+        deserialiser.assign(data);
+        base_deserialiser.assign(data);
     }
     virtual QJsonValue to_json() const override {
-        QJsonObject result = serialiser.to_json().toObject();
-        QJsonObject base = base_serialiser.to_json().toObject();
+        QJsonObject result = deserialiser.to_json().toObject();
+        QJsonObject base = base_deserialiser.to_json().toObject();
         for (auto i = base.begin(); i != base.end(); i++)
             result.insert(i.key(), i.value());
         return result;
-    }
-    ~DerivedObject() {
-        serialiser.clear();
     }
 };
 
