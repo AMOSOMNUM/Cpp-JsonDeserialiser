@@ -123,12 +123,6 @@ struct is_nullable<const char*> {
     static constexpr bool value = false;
 };
 
-template <>
-struct is_nullable<const wchar_t*> {
-    using Type = void;
-    static constexpr bool value = false;
-};
-
 template <typename T>
 struct is_nullable<std::optional<T>> {
     using Type = T;
@@ -1110,12 +1104,6 @@ struct Remove_Const_Of_C_Style<const char*> {
     using Type = char*;
 };
 
-template <>
-struct Remove_Const_Of_C_Style<const wchar_t*> {
-    static constexpr bool value = true;
-    using Type = wchar_t*;
-};
-
 template <typename Convertor>
 class Extension : public DeserialisableBase {
 public:
@@ -1720,10 +1708,6 @@ struct Deserialisable<const char*> {
     using Type = String<char*>;
 };
 
-template <>
-struct Deserialisable<const wchar_t*> {
-    using Type = String<wchar_t*>;
-};
 } // namespace JsonDeserialise
 
 // Local
