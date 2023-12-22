@@ -234,6 +234,9 @@ namespace JsonDeserialise {
                 deserialise(data.object());
             file.close();
         }
+        inline void deserialise(const QString& json) {
+            deserialise(json.toUtf8());
+        }
         void deserialise(const QByteArray& json) {
             QJsonParseError parser;
             QJsonDocument result = QJsonDocument::fromJson(json, &parser);
@@ -951,11 +954,10 @@ namespace JsonDeserialise {
         }
     };
 
-    template <typename T, typename KeyType, typename ValueType, const char* KeyName = nullptr>
+    template <typename T, typename KeyType, typename ValueType, const char* key = nullptr>
     class MapArray : public DeserialisableBase {
         using Target = std::decay_t<T>;
         Target& value;
-        QString key = KeyName;
 
     public:
         MapArray(Target& source) : DeserialisableBase(Trait::ARRAY), value(source) {}
@@ -996,7 +998,7 @@ namespace JsonDeserialise {
         std::optional<QString> val_name;
 
     public:
-        MapArray(Target& source, QString key_name = QStringLiteral("key"))
+        MapArray(Target& source, QString key_name)
             : DeserialisableBase(Trait::ARRAY), value(source), key(key_name) {}
         MapArray(Target& source, QString key_name, QString val_json_name)
             : DeserialisableBase(Trait::ARRAY), value(source), key(key_name), val_name(val_json_name) {}
@@ -1084,14 +1086,12 @@ namespace JsonDeserialise {
         virtual void assign(const QJsonValue& data) override {
             if (!data.isObject() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : data.toArray()) {
-                Type1& element1 = value.first;
-                Type2& element2 = value.second;
-                DeserialisableType<Type1> deserialiser1(element1);
-                DeserialisableType<Type2> deserialiser2(element2);
-                deserialiser1.assign(i.toObject()[name[0]]);
-                deserialiser2.assign(i.toObject()[name[1]]);
-            }
+            Type1& element1 = value.first;
+            Type2& element2 = value.second;
+            DeserialisableType<Type1> deserialiser1(element1);
+            DeserialisableType<Type2> deserialiser2(element2);
+            deserialiser1.assign(data.toObject()[name[0]]);
+            deserialiser2.assign(data.toObject()[name[1]]);
         }
         virtual QJsonValue to_json() const override {
             QJsonObject pair;
@@ -1798,15 +1798,15 @@ namespace JsonDeserialise {
 
 // Local
 #define declare_top_deserialiser(data_name, var_name)                                              \
-    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name));
+    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name);
 #define declare_deserialiser(json_name, data_name, var_name)                                       \
-    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((json_name), (data_name));
-#define declare_serialiser(json_name, data_name, var_name)                                         \
-    const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(                       \
-        (json_name), const_cast<std::decay_t<decltype(data_name)>&>(data_name));
+    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(json_name, data_name);
 #define declare_top_serialiser(data_name, var_name)                                                \
     const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(                       \
         const_cast<std::decay_t<decltype(data_name)>&>(data_name));
+#define declare_serialiser(json_name, data_name, var_name)                                         \
+    const JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(                       \
+        (json_name), const_cast<std::decay_t<decltype(data_name)>&>(data_name));
 #define declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor)     \
     JsonDeserialise::Extension var_name(                                                           \
         JsonDeserialise::Convertor<decltype(data_name), decltype(convertor),                       \
@@ -1822,30 +1822,37 @@ namespace JsonDeserialise {
         JsonDeserialise::SerialiseOnlyConvertor<decltype(data_name), decltype(convertor)>(         \
             (convertor)),                                                                          \
         json_name, data_name);
-#define declare_simple_map_deserialiser(data_name, key_name, val_name, var_name)                   \
+#define declare_top_simple_map_deserialiser(data_name, key_name, val_name, var_name)               \
     JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name,         \
                                                                       val_name);
-#define declare_object_map_deserialiser(data_name, key_name, var_name)                             \
+#define declare_simple_map_deserialiser(json_name, data_name, key_name, val_name, var_name)        \
+    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(json_name, data_name,        \
+                                                                      key_name, val_name);
+#define declare_top_object_map_object_deserialiser(data_name, key_name, var_name)                  \
     JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name);
-#define declare_pair_deserialiser(object_name, json_name1, json_name2, data_name, var_name)        \
-    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((object_name), (data_name),  \
-                                                                      (json_name1), (json_name2));
-#define declare_pair_array_deserialiser(json_name1, json_name2, data_name, var_name)               \
-    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name((data_name), (json_name1),   \
-                                                                      (json_name2));
-#define declare_object_deserialiser(json_name, object_type, var_name, ...)                         \
-    JsonDeserialise::Object var_name(QStringLiteral(json_name), (object_type*)(nullptr),           \
-                                     __VA_ARGS__);
-#define declare_object_array_deserialiser(object_type, data_name, var_name, ...)                   \
+#define declare_object_map_deserialiser(json_name, data_name, key_name, var_name)                  \
+    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(json_name, data_name,        \
+                                                                      key_name);
+#define declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)                 \
+    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, json_name1,       \
+                                                                      json_name2);
+#define declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)          \
+    JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(json_name, data_name,        \
+                                                                      json_name1, json_name2);
+#define declare_top_object_deserialiser(var_name, ...)                                             \
+    JsonDeserialise::JsonDeserialiser var_name(__VA_ARGS__);
+#define declare_top_object_array_deserialiser(object_type, data_name, var_name, ...)               \
     JsonDeserialise::ObjectArray var_name(data_name, (object_type*)nullptr, __VA_ARGS__);
+#define declare_object_array_deserialiser(json_name, object_type, data_name, var_name, ...)        \
+    JsonDeserialise::ObjectArray var_name(json_name, data_name, (object_type*)nullptr, __VA_ARGS__);
+#define array_object_member(object_type, json_name, member_name)                                   \
+    JsonDeserialise::Info(json_name, &((object_type*)nullptr)->member_name)
 
 // Global
 #define register_object_member(object_type, json_name, member_name)                                \
     namespace JsonDeserialise {                                                                    \
         constexpr char object_type##_##member_name[] = json_name;                                  \
     };
-#define array_object_member(object_type, json_name, member_name)                                   \
-    JsonDeserialise::Info(json_name, &((object_type*)nullptr)->member_name)
 #define object_member(object_type, member_name)                                                    \
     JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
                                     JsonDeserialise::object_type##_##member_name,                  \
