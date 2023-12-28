@@ -963,9 +963,15 @@ namespace JsonDeserialise {
         }
     };
 
-    template <typename T, const char* json_name, size_t member_offset, bool optional_member = false>
+    template<typename T, const char* json_name, size_t member_offset>
+    struct Customised {
+        using Type = DeserialisableType<T>;
+    };
+
+    template <typename T, const char* json_name, size_t member_offset, bool optional_member = false, typename Custom = Customised<T, json_name, member_offset>::Type>
     struct ReinforcedInfo {
         using Type = T;
+        using Prototype = Custom;
         static constexpr const char* name = json_name;
         static constexpr size_t offset = member_offset;
         static constexpr bool optional = optional_member;
@@ -980,12 +986,12 @@ namespace JsonDeserialise {
         DeserialisableObject(ObjectType& value)
             : DeserialisableBase(Trait::OBJECT),
             deserialiser(&value,
-                new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
+                new typename MemberInfo::Prototype(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
         {}
         DeserialisableObject(QString json_name, ObjectType& value, bool optional = false)
             : DeserialisableBase(json_name, optional ? Trait(uint8_t(Trait::OPTIONAL) | uint8_t(Trait::OBJECT)) : Trait::OBJECT),
             deserialiser(json_name, &value,
-                new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
+                new typename MemberInfo::Prototype(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
         {}
 
         virtual void assign(const QJsonValue& data) override {
@@ -1875,10 +1881,10 @@ namespace JsonDeserialise {
         JsonDeserialise::DeserialiseOnlyConvertor<decltype(data_name), decltype(convertor)>(       \
             (convertor)),                                                                          \
         json_name, data_name);
-#define declare_one_direction_extension_serialiser(json_name, data_name, var_name, convertor)      \
+#define declare_one_direction_extension_serialiser(json_name, data_name, var_name, deconvertor)    \
     JsonDeserialise::SerialiseOnlyExtension var_name(                                              \
-        JsonDeserialise::SerialiseOnlyConvertor<decltype(data_name), decltype(convertor)>(         \
-            (convertor)),                                                                          \
+        JsonDeserialise::SerialiseOnlyConvertor<decltype(data_name), decltype(deconvertor)>(       \
+            (deconvertor)),                                                                        \
         json_name, data_name);
 #define declare_top_simple_map_deserialiser(data_name, key_name, val_name, var_name)               \
     JsonDeserialise::DeserialisableType<decltype(data_name)> var_name(data_name, key_name,         \
@@ -1903,13 +1909,44 @@ namespace JsonDeserialise {
     JsonDeserialise::ObjectArray var_name(data_name, (object_type*)nullptr, __VA_ARGS__);
 #define declare_object_array_deserialiser(json_name, data_name, var_name, object_type, ...)        \
     JsonDeserialise::ObjectArray var_name(json_name, data_name, (object_type*)nullptr, __VA_ARGS__);
-#define array_field(object_type, json_name, member_name)                                   \
+#define array_field(object_type, json_name, member_name)                                           \
     JsonDeserialise::Info<decltype(((object_type*)nullptr)->member_name)>(json_name, offsetof(object_type, member_name))
 
 // Global
+#define set_object_alias(object_type, alias)                                                       \
+    namespace JsonDeserialise {                                                                    \
+        using alias = ::object_type;                                                               \
+    };
 #define register_object_member(object_type, json_name, member_name)                                \
     namespace JsonDeserialise {                                                                    \
         constexpr char object_type##_##member_name[] = json_name;                                  \
+    };
+#define register_object_member_with_extension(object_type, json_name, member_name, json_type,      \ 
+                                              convertor, deconvertor)                              \
+    namespace JsonDeserialise {                                                                    \
+        constexpr char object_type##_##member_name[] = json_name;                                  \
+        using object_type##_##member_name##_##json_type##_##Extension_Convertor_ =                 \
+            Convertor<decltype(((object_type*)nullptr)->member_name), decltype(convertor),         \
+                      decltype(deconvertor), json_type>;                                           \
+        using object_type##_##member_name##_##json_type##_##Extension_Base_ =                      \
+            Extension<object_type##_##member_name##_##json_type##_##Extension_Convertor_>;         \
+        struct object_type##_##member_name##_##json_type##_##Extension_                            \
+            : public object_type##_##member_name##_##json_type##_##Extension_Base_ {               \
+            using Base = object_type##_##member_name##_##json_type##_##Extension_Base_;            \
+            using TargetType = decltype(((object_type*)nullptr)->member_name);                     \
+            inline static const object_type##_##member_name##_##json_type##_##Extension_Convertor_ \
+                _CONVERTOR_ = { (convertor), (deconvertor) };                                      \
+            object_type##_##member_name##_##json_type##_##Extension_(const QString& name,          \
+                                                                     TargetType& source,           \
+                                                                     bool optional = false)        \
+                : Base(_CONVERTOR_, name, source, optional) {}                                     \
+        };                                                                                         \
+    };                                                                                             \
+    template<>                                                                                     \
+    struct JsonDeserialise::Customised<decltype(((object_type*)nullptr)->member_name),             \
+                                       JsonDeserialise::object_type##_##member_name,               \
+                                       (offsetof(object_type, member_name))> {                     \
+        using Type = JsonDeserialise::object_type##_##member_name##_##json_type##_##Extension_;    \
     };
 #define object_member(object_type, member_name)                                                    \
     JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
@@ -1935,7 +1972,7 @@ namespace JsonDeserialise {
         template <>                                                                                \
         struct Deserialisable<container_type<key_type, value_type>> {                              \
             using Type = MapArray<container_type<key_type, value_type>, key_type, value_type,      \
-                                  map_##container_type##_##key_type##_##value_type##_##json_key>;         \
+                                  map_##container_type##_##key_type##_##value_type##_##json_key>;  \
         };                                                                                         \
     }
 #define declare_object_with_base_class(object_type, base_type, ...)                                \
@@ -1958,9 +1995,7 @@ namespace JsonDeserialise {
             : public target_type##_##json_type##_##GlobalExtension_Base_ {                         \
             using Base = target_type##_##json_type##_##GlobalExtension_Base_;                      \
             inline static const target_type##_##json_type##_##GlobalExtension_Base_Convertor_      \
-                _CONVERTOR_ =                                                                      \
-                    Convertor<target_type, decltype(convertor), decltype(deconvertor), json_type>( \
-                        (convertor), (deconvertor));                                               \
+                _CONVERTOR_ = { (convertor), (deconvertor) };                                      \
             target_type##_##json_type##_##GlobalExtension_(target_type& source)                    \
                 : Base(_CONVERTOR_, source) {}                                                     \
             target_type##_##json_type##_##GlobalExtension_(const QString& name,                    \
@@ -1973,5 +2008,29 @@ namespace JsonDeserialise {
             using Type = target_type##_##json_type##_##GlobalExtension_;                           \
         };                                                                                         \
     }
+#define declare_extension(name, target_type, json_type, convertor, deconvertor)                    \
+    namespace JsonDeserialise {                                                                    \
+        using name##_##Extension_Base_Convertor_ =                                                 \
+            Convertor<target_type, decltype(convertor), decltype(deconvertor), json_type>;         \
+        using name##_##Extension_Base_ =                                                           \
+            Extension<name##_##Extension_Base_Convertor_>;                                         \
+        struct name##_##Extension_ : public name##_##Extension_Base_ {                             \
+            using Base = name##_##Extension_Base_;                                                 \
+            inline static const name##_##Extension_Base_Convertor_                                 \
+                _CONVERTOR_ = { (convertor), (deconvertor) };                                      \
+            name##_##Extension_(const QString& name, target_type& source, bool optional = false)   \
+                : Base(_CONVERTOR_, name, source, optional) {}                                     \
+        };                                                                                         \    
+    }
+#define object_member_with_extension(object_type, member_name, extension)                          \
+    JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
+                                    JsonDeserialise::object_type##_##member_name,                  \
+                                    (offsetof(object_type, member_name)), false,                   \
+                                    JsonDeserialise::extension##_##Extension_>
+#define optional_object_member_with_extension(object_type, member_name, extension)                 \
+    JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
+                                    JsonDeserialise::object_type##_##member_name,                  \
+                                    (offsetof(object_type, member_name)), true,                   \
+                                    JsonDeserialise::extension##_##Extension_>
 
 #endif // JSON_DESERIALISER_H
