@@ -467,6 +467,7 @@ namespace JsonDeserialise {
 
     template <typename T>
     class String : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -488,6 +489,7 @@ namespace JsonDeserialise {
 
     template <size_t length>
     class String<char[length]> : public DeserialisableBase {
+    protected:
         using Target = char[length];
         Target& value;
 
@@ -513,6 +515,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename StringType>
     class NullableString : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -610,6 +613,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename StringType>
     class StringArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -640,6 +644,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename NullableStringType, typename StringType>
     class NullableStringArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -684,6 +689,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename StringType, std::size_t N>
     class LimitedStringArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -715,6 +721,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename NullableStringType, typename StringType, std::size_t N>
     class LimitedNullableStringArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -801,6 +808,7 @@ namespace JsonDeserialise {
 
     template <typename T, class ObjectType, typename... Members>
     class ObjectArray : public DeserialisableBase {
+    protected:
         using Target = T;
         using Prototype = Object<ObjectType>;
         T& value;
@@ -846,6 +854,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename TrivialType>
     class Array : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         using Prototype = DeserialisableType<TrivialType>;
         Target& value;
@@ -882,6 +891,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename TrivialType, std::size_t N>
     class LimitedArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         using Prototype = DeserialisableType<TrivialType>;
         Target& value;
@@ -920,6 +930,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename TypeInNullable>
     class Nullable : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -978,32 +989,20 @@ namespace JsonDeserialise {
     };
 
     template <typename ObjectType, typename... MemberInfo>
-    class DeserialisableObject : public DeserialisableBase {
-        using Target = ObjectType;
-        Object<ObjectType> deserialiser;
-
-    public:
+    struct DeserialisableObject : public Object<ObjectType> {
         DeserialisableObject(ObjectType& value)
-            : DeserialisableBase(Trait::OBJECT),
-            deserialiser(&value,
+            : Object<ObjectType>(&value,
                 new typename MemberInfo::Prototype(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
         {}
         DeserialisableObject(QString json_name, ObjectType& value, bool optional = false)
-            : DeserialisableBase(json_name, optional ? Trait(uint8_t(Trait::OPTIONAL) | uint8_t(Trait::OBJECT)) : Trait::OBJECT),
-            deserialiser(json_name, &value,
+            : Object<ObjectType>(json_name, &value,
                 new typename MemberInfo::Prototype(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
         {}
-
-        virtual void assign(const QJsonValue& data) override {
-            deserialiser.assign(data);
-        }
-        virtual QJsonValue to_json() const override {
-            return deserialiser.to_json();
-        }
     };
 
     template <typename T>
     class SelfDeserialisableObject : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -1026,6 +1025,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename KeyType, typename ValueType, const char* key = nullptr>
     class MapArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
 
@@ -1062,6 +1062,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename KeyType, typename ValueType>
     class MapArray<T, KeyType, ValueType, nullptr> : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
         QString key;
@@ -1109,32 +1110,28 @@ namespace JsonDeserialise {
     };
 
     template <class Base, class T, typename... MemberInfo>
-    class DerivedObject : public DeserialisableBase {
-        using Target = T;
+    class DerivedObject : public DeserialisableType<Base> {
         Object<T> deserialiser;
-        std::enable_if_t<std::is_base_of_v<Base, T>, DeserialisableType<Base>> base_deserialiser;
 
     public:
         DerivedObject(T& value)
-            : DeserialisableBase(Trait::OBJECT),
+            : DeserialisableType<Base>(static_cast<Base&>(value)),
             deserialiser(&value,
-                new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...),
-            base_deserialiser(static_cast<Base&>(value))
+                new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
         {}
         DerivedObject(const QString& json_name, T& value, bool optional = false)
-            : DeserialisableBase(json_name, optional ? Trait(uint8_t(Trait::OPTIONAL) | uint8_t(Trait::OBJECT)) : Trait::OBJECT),
+            : DeserialisableType<Base>(json_name, static_cast<Base&>(value), optional),
             deserialiser(json_name, &value,
-                new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...),
-            base_deserialiser(static_cast<Base&>(value))
+                new DeserialisableType<typename MemberInfo::Type>(MemberInfo::name, (typename MemberInfo::Type&)* ((uint8_t*)(&value) + MemberInfo::offset), MemberInfo::optional)...)
         {}
 
         virtual void assign(const QJsonValue& data) override {
             deserialiser.assign(data);
-            base_deserialiser.assign(data);
+            DeserialisableType<Base>::assign(data);
         }
         virtual QJsonValue to_json() const override {
             QJsonObject result = deserialiser.to_json().toObject();
-            QJsonObject base = base_deserialiser.to_json().toObject();
+            QJsonObject base = DeserialisableType<Base>::to_json().toObject();
             for (auto i = base.begin(); i != base.end(); i++)
                 result.insert(i.key(), i.value());
             return result;
@@ -1143,6 +1140,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename Type1, typename Type2>
     class Pair : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
         QString name[2];
@@ -1177,6 +1175,7 @@ namespace JsonDeserialise {
 
     template <typename T, typename PairType>
     class PairArray : public DeserialisableBase {
+    protected:
         using Target = std::decay_t<T>;
         Target& value;
         QString name[2];
@@ -1247,7 +1246,7 @@ namespace JsonDeserialise {
         using Type = DeserialisableType<typename Convertor::Type>;
         using Target = typename Convertor::Target;
 
-    private:
+    protected:
         Target& value;
         mutable typename Convertor::Source tmp;
         std::decay_t<Convertor> convertor;
@@ -1302,7 +1301,7 @@ namespace JsonDeserialise {
         using Type = DeserialisableType<typename Convertor::Type>;
         using Target = typename Convertor::Target;
 
-    private:
+    protected:
         Target& value;
         mutable typename Convertor::Source tmp;
         std::decay_t<Convertor> convertor;
@@ -1341,7 +1340,7 @@ namespace JsonDeserialise {
         using Target = typename Convertor::Target;
         using Source = typename Convertor::Type;
 
-    private:
+    protected:
         const Source& src;
         mutable Target value;
         std::decay_t<Convertor> convertor;
@@ -1640,6 +1639,7 @@ namespace JsonDeserialise {
     template <typename Deductor, typename... Targets, int... pack>
     class VarientObject<Deductor, std::variant<Targets...>, ConstexprArrayPack<pack...>>
         : public DeserialisableBase {
+    protected:
         using Target = std::variant<Targets...>;
         mutable int result = -1;
         Extension<Deductor> deductor;
@@ -1678,8 +1678,10 @@ namespace JsonDeserialise {
         }
     };
 
-    struct JSONWrap : public DeserialisableBase {
+    class JSONWrap : public DeserialisableBase {
+    protected:
         QJsonValue& value;
+    public:
         JSONWrap(QJsonValue& src) : value(src) {}
         JSONWrap(const QString& name, QJsonValue& src, bool optional = false)
             : DeserialisableBase(name, optional ? Trait::OPTIONAL : Trait::NUL), value(src)
@@ -1690,6 +1692,24 @@ namespace JsonDeserialise {
         }
         virtual QJsonValue to_json() const override {
             return value;
+        }
+    };
+
+    template<typename T, typename Prototype = DeserialisableType<T>>
+    class EndoFunctor : public Prototype {
+        std::function<void(T&)> functor;
+
+    public:
+        template <typename Functor>
+        EndoFunctor(Functor&& f, T& source)
+            : Prototype(source), functor(f) {}
+        template <typename Functor>
+        EndoFunctor(Functor&& f, const QString& json_name, T& source, bool optional = false)
+            : Prototype(json_name, source, optional), functor(f) {}
+
+        virtual void assign(const QJsonValue& data) override {
+            Prototype::assign(data);
+            functor(Prototype::value);
         }
     };
 
@@ -2018,6 +2038,7 @@ namespace JsonDeserialise {
             using Base = name##_##Extension_Base_;                                                 \
             inline static const name##_##Extension_Base_Convertor_                                 \
                 _CONVERTOR_ = { (convertor), (deconvertor) };                                      \
+            name##_##Extension_(target_type& source) : Base(_CONVERTOR_, source) {}                \
             name##_##Extension_(const QString& name, target_type& source, bool optional = false)   \
                 : Base(_CONVERTOR_, name, source, optional) {}                                     \
         };                                                                                         \    
@@ -2030,7 +2051,47 @@ namespace JsonDeserialise {
 #define optional_object_member_with_extension(object_type, member_name, extension)                 \
     JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
                                     JsonDeserialise::object_type##_##member_name,                  \
-                                    (offsetof(object_type, member_name)), true,                   \
+                                    (offsetof(object_type, member_name)), true,                    \
                                     JsonDeserialise::extension##_##Extension_>
+#define declare_endofunctor(name, type, functor)                                                   \
+    namespace JsonDeserialise {                                                                    \
+        struct name##_##EndoFunctor_                                                               \ 
+            : public EndoFunctor<type> {                                                           \
+            using Base = EndoFunctor<type>;                                                        \
+            inline static const std::function<void(type&)> _FUNCTOR_ = functor;                    \
+            name##_##EndoFunctor_(type& source) : Base(_FUNCTOR_, source) {}                       \
+            name##_##EndoFunctor_(const QString& name, type& source, bool optional = false)        \
+                : Base(_FUNCTOR_, name, source, optional) {}                                       \
+        };                                                                                         \
+    };                                                                                             
+#define register_object_member_with_endofunctor(object_type, json_name, member_name, functor)      \
+    namespace JsonDeserialise {                                                                    \
+        constexpr char object_type##_##member_name[] = json_name;                                  \
+        struct object_type##_##member_name##_##EndoFunctor_                                        \ 
+            : public EndoFunctor<decltype(((object_type*)nullptr)->member_name)> {                 \
+            using T = decltype(((object_type*)nullptr)->member_name);                              \
+            using Base = EndoFunctor<T>;                                                           \
+            inline static const std::function<void(T&)> _FUNCTOR_ = functor;                       \
+            object_type##_##member_name##_##EndoFunctor_(const QString& name, T& source,           \
+                                                         bool optional = false)                    \
+                : Base(_FUNCTOR_, name, source, optional) {}                                       \
+        };                                                                                         \
+    };                                                                                             \
+    template<>                                                                                     \
+    struct JsonDeserialise::Customised<decltype(((object_type*)nullptr)->member_name),             \
+                                       JsonDeserialise::object_type##_##member_name,               \
+                                       (offsetof(object_type, member_name))> {                     \
+        using Type = object_type##_##member_name##_##EndoFunctor_;                                 \
+    };
+#define object_member_with_endofunctor(object_type, member_name, functor)                          \
+    JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
+                                    JsonDeserialise::object_type##_##member_name,                  \
+                                    (offsetof(object_type, member_name)), false,                   \
+                                    JsonDeserialise::functor##_##EndoFunctor_>
+#define optional_object_member_with_endofunctor(object_type, member_name, functor)                 \
+    JsonDeserialise::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),                \
+                                    JsonDeserialise::object_type##_##member_name,                  \
+                                    (offsetof(object_type, member_name)), true,                    \
+                                    JsonDeserialise::functor##_##EndoFunctor_>
 
 #endif // JSON_DESERIALISER_H
