@@ -1,6 +1,6 @@
 # JsonDeserialiser
 
-Using Qt's Json Library(But it not relies on, and may support more json library in the future!), it convert json into various types through static declaration by using template of Modern C++(Some traits require C++17).
+Using Qt's Json Library(But it doesn't relies on, and may support more json libraries in the near future!), it converts json into various types or data structures through static declaration by using template of Modern C++(Some traits require C++17).
 
 ## Basic Types
 
@@ -21,10 +21,14 @@ Using Qt's Json Library(But it not relies on, and may support more json library 
 |LimitedArray|T[N]、std::array\<T, N>|
 |MapArray|std::map\<KeyType, ValueType>|
 |Pair|std::pair\<KeyType, ValueType>|
-|NonTrivial|alignment same as BasicType|
-|DerivedObject|support inheritance|
-|Extension|BasicType to Any<br>(Experimental)|
+|NonTrivial|alignment same as an Existing Type|
+|DerivedObject|Support single inheritance|
+|Extension|an Existing Type to Any|
 |VerientObject|Object to std::variant<br>(Experimental & Untested)|
+
+## Functional API
+
+EndoFunctor: allows you to check or transform the data deserialised
 
 ## Usage
 
