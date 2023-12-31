@@ -364,7 +364,7 @@ namespace JsonDeserialise {
         }
     };
 
-    template <typename T = int32_t, bool sign = true, size_t size = 4>
+    template <typename T, bool sign, size_t size>
     class Integer;
 
     template <typename T>
@@ -383,7 +383,7 @@ namespace JsonDeserialise {
                 value = data.toString().toInt();
             else if (data.isDouble())
                 value = data.toInt();
-            else
+            else if (!(data.isNull() && (uint8_t(flag) & uint8_t(Trait::OPTIONAL))))
                 throw std::ios_base::failure("Type Unmatch!");
         }
         virtual QJsonValue to_json() const override {
@@ -406,8 +406,8 @@ namespace JsonDeserialise {
             if (data.isString())
                 value = data.toString().toUInt();
             else if (data.isDouble())
-                value = data.toVariant().toUInt();
-            else
+                value = (uint32_t)data.toInt();
+            else if (!(data.isNull() && (uint8_t(flag) & uint8_t(Trait::OPTIONAL))))
                 throw std::ios_base::failure("Type Unmatch!");
         }
         virtual QJsonValue to_json() const override {
@@ -434,7 +434,7 @@ namespace JsonDeserialise {
                 value = data.toString().toDouble();
             else if (data.isDouble())
                 value = data.toDouble();
-            else
+            else if (!(data.isNull() && (uint8_t(flag) & uint8_t(Trait::OPTIONAL))))
                 throw std::ios_base::failure("Type Unmatch!");
         }
         virtual QJsonValue to_json() const override {
@@ -603,13 +603,16 @@ namespace JsonDeserialise {
         virtual std::enable_if_t<bool(GetArrayInsertWay<T, StringType>::value)> assign(const QJsonValue& data) override {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : data.toArray())
+            for (const auto& i : data.toArray()) {
+                if (!i.isString() && !i.isNull())
+                    throw std::ios_base::failure("Type Unmatch!");
                 if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Push_Back))
                     value.push_back(StringConvertor<StringType>::convert(i.toString()));
                 else if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Append))
                     value.append(StringConvertor<StringType>::convert(i.toString()));
                 else if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Insert))
                     value.insert(StringConvertor<StringType>::convert(i.toString()));
+            }
         }
         virtual QJsonValue to_json() const override {
             QJsonArray array;
@@ -636,7 +639,7 @@ namespace JsonDeserialise {
             if (!data.isArray() && !data.isNull())
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : data.toArray())
-                if (!i.isNull()) {
+                if (i.isString()) {
                     if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Push_Back))
                         value.push_back(NullableHandler<NullableStringType, StringType>::convert(StringConvertor<StringType>::convert(i.toString())));
                     else if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Append))
@@ -644,7 +647,7 @@ namespace JsonDeserialise {
                     else if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Insert))
                         value.insert(NullableHandler<NullableStringType, StringType>::convert(StringConvertor<StringType>::convert(i.toString())));
                 }
-                else {
+                else if (i.isNull()) {
                     if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Push_Back))
                         value.push_back(NullableHandler<NullableStringType, StringType>::make_empty());
                     else if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Append))
@@ -652,6 +655,9 @@ namespace JsonDeserialise {
                     else if constexpr (uint8_t(GetArrayInsertWay<T, StringType>::value) & uint8_t(ArrayInsertWay::Insert))
                         value.insert(NullableHandler<NullableStringType, StringType>::make_empty());
                 }
+                else
+                    throw std::ios_base::failure("Type Unmatch!");
+
         }
         virtual QJsonValue to_json() const override {
             QJsonArray array;
@@ -681,6 +687,8 @@ namespace JsonDeserialise {
                 throw std::ios_base::failure("Type Unmatch!");
             int count = 0;
             for (const auto& i : data.toArray()) {
+                if (!i.isString() && !i.isNull())
+                    throw std::ios_base::failure("Type Unmatch!");
                 if (count > N - 1)
                     throw std::ios_base::failure("Array Out of Range!");
                 value[count++] = StringConvertor<StringType>::convert(i.toString());
@@ -769,15 +777,16 @@ namespace JsonDeserialise {
     };
 
     struct ObjectArrayInfo {
-        const char* name;
-        size_t offset;
+        QString name;
+        const size_t offset;
 
-        ObjectArrayInfo(const char* id, size_t offset) : name(id), offset(offset) {}
+        ObjectArrayInfo(QString&& id, size_t offset) : name(std::move(id)), offset(offset) {}
     };
 
     template <typename>
     struct Info : ObjectArrayInfo {
-        Info(const char* id, size_t offset) : ObjectArrayInfo(id, offset) {}
+        Info(QString&& id, size_t offset) : ObjectArrayInfo(std::move(id), offset) {}
+        Info(Info&& other) : ObjectArrayInfo(std::move(other.name), other.offset) {}
     };
 
     template <typename T, typename Pack>
@@ -794,9 +803,10 @@ namespace JsonDeserialise {
     constexpr auto GetAllValueArray = GetAllValue<T, typename ConstexprIncArray<N>::Type>::value;
 
     template<typename Front = void, typename... Left>
-    struct DeserialiserTuple : public DeserialiserTuple<Left...> {
-        DeserialisableType<Front> value;
+    struct DeserialiserTuple {
         using Base = DeserialiserTuple<Left...>;
+        Base base;
+        DeserialisableType<Front> value;
         constexpr static auto size = sizeof...(Left);
 
         template<int index>
@@ -807,8 +817,8 @@ namespace JsonDeserialise {
                 return Base::template get<index>();
         }
 
-        DeserialiserTuple(void* ptr, ObjectArrayInfo* info) : Base(ptr, info + 1), value(info->name, *reinterpret_cast<Front*>(reinterpret_cast<uint8_t*>(ptr) + info->offset)) {}
-        DeserialiserTuple(const void* ptr, const ObjectArrayInfo* info) : Base(ptr, info + 1), value(info->name, *const_cast<Front*>(reinterpret_cast<const Front*>(reinterpret_cast<const uint8_t*>(ptr) + info->offset))) {}
+        DeserialiserTuple(void* ptr, ObjectArrayInfo* info) : base(ptr, info + 1), value(info->name, *reinterpret_cast<Front*>(reinterpret_cast<uint8_t*>(ptr) + info->offset)) {}
+        DeserialiserTuple(const void* ptr, const ObjectArrayInfo* info) : base(ptr, info + 1), value(info->name, *const_cast<Front*>(reinterpret_cast<const Front*>(reinterpret_cast<const uint8_t*>(ptr) + info->offset))) {}
     };
 
     template<>
@@ -856,9 +866,9 @@ namespace JsonDeserialise {
         virtual QJsonValue to_json() const override {
             QJsonArray array;
             for (const auto& i : value) {
-                DeserialiserTuple<Members...> fields(&i, info);
+                const DeserialiserTuple<Members...> fields(&i, info);
                 int count = 0;
-                JsonSerialiser serialiser(*reinterpret_cast<DeserialisableType<Members>*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
+                JsonSerialiser serialiser(*reinterpret_cast<const DeserialisableType<Members>*>(reinterpret_cast<const uint8_t*>(&fields) + offsets[count++])...);
                 array.append(serialiser.serialise_to_json());
             }
             return array;
@@ -992,7 +1002,7 @@ namespace JsonDeserialise {
         using Type = DeserialisableType<T>;
     };
 
-    template <typename T, const char* json_name, size_t member_offset, bool optional_member = false, typename Custom = Customised<T, json_name, member_offset>::Type>
+    template <typename T, const char* json_name, size_t member_offset, bool optional_member = false, typename Custom = typename Customised<T, json_name, member_offset>::Type>
     struct ReinforcedInfo {
         using Type = T;
         using Prototype = Custom;
@@ -1003,9 +1013,10 @@ namespace JsonDeserialise {
 
 
     template<typename T, const char* json_name, size_t member_offset, bool optional_member, typename Custom, typename... Left>
-    struct DeserialiserTuple<ReinforcedInfo<T, json_name, member_offset, optional_member, Custom>, Left...> : public DeserialiserTuple<Left...> {
-        Custom value;
+    struct DeserialiserTuple<ReinforcedInfo<T, json_name, member_offset, optional_member, Custom>, Left...> {
         using Base = DeserialiserTuple<Left...>;
+        Base base;
+        Custom value;
         constexpr static auto size = sizeof...(Left);
 
         template<int index>
@@ -1016,7 +1027,8 @@ namespace JsonDeserialise {
                 return Base::template get<index>();
         }
 
-        DeserialiserTuple(void* ptr) : Base(ptr), value(json_name, *reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(ptr) + member_offset)) {}
+        DeserialiserTuple(void* ptr) : base(ptr), value(json_name, *reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(ptr) + member_offset)) {}
+        DeserialiserTuple(const void* ptr) : base(ptr), value(json_name, *const_cast<T*>(reinterpret_cast<const T*>(reinterpret_cast<const uint8_t*>(ptr) + member_offset))) {}
     };
 
     template <typename ObjectType, typename... MemberInfo>
@@ -1031,17 +1043,20 @@ namespace JsonDeserialise {
         {}
 
         virtual void assign(const QJsonValue& data) override {
-            if (!data.isObject())
+            if (!data.isObject()) {
+                if (data.isNull() && (uint8_t(flag) & uint8_t(Trait::OPTIONAL)))
+                    return;
                 throw std::ios_base::failure("Type Unmatch!");
+            }
             DeserialiserTuple<MemberInfo...> fields(&value);
             int count = 0;
-            JsonDeserialiser deserialiser(*reinterpret_cast<MemberInfo::Prototype*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
+            JsonDeserialiser deserialiser(*reinterpret_cast<typename MemberInfo::Prototype*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
             deserialiser.deserialise(data.toObject());
         }
         virtual QJsonValue to_json() const override {
-            DeserialiserTuple<MemberInfo...> fields(&value);
+            const DeserialiserTuple<MemberInfo...> fields(&value);
             int count = 0;
-            JsonSerialiser serialiser(*reinterpret_cast<MemberInfo::Prototype*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
+            JsonSerialiser serialiser(*reinterpret_cast<const typename MemberInfo::Prototype*>(reinterpret_cast<const uint8_t*>(&fields) + offsets[count++])...);
             return serialiser.serialise_to_json();
         }
     };
@@ -1059,8 +1074,11 @@ namespace JsonDeserialise {
         {}
 
         virtual void assign(const QJsonValue& data) override {
-            if (!data.isObject() && !data.isNull())
+            if (!data.isObject()) {
+                if (data.isNull() && (uint8_t(flag) & uint8_t(Trait::OPTIONAL)))
+                    return;
                 throw std::ios_base::failure("Type Unmatch!");
+            }
             if (data.isObject())
                 value = std::move(Target(data.toObject()));
         }
@@ -1168,14 +1186,14 @@ namespace JsonDeserialise {
             DeserialisableType<Base>::assign(data);
             DeserialiserTuple<MemberInfo...> fields(&DeserialisableType<Base>::value);
             int count = 0;
-            JsonDeserialiser deserialiser(*reinterpret_cast<MemberInfo::Prototype*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
+            JsonDeserialiser deserialiser(*reinterpret_cast<typename MemberInfo::Prototype*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
             deserialiser.deserialise(data.toObject());
         }
         virtual QJsonValue to_json() const override {
             QJsonObject result = DeserialisableType<Base>::to_json().toObject();
-            DeserialiserTuple<MemberInfo...> fields(&DeserialisableType<Base>::value);
+            const DeserialiserTuple<MemberInfo...> fields(&DeserialisableType<Base>::value);
             int count = 0;
-            JsonSerialiser serialiser(*reinterpret_cast<MemberInfo::Prototype*>(reinterpret_cast<uint8_t*>(&fields) + offsets[count++])...);
+            JsonSerialiser serialiser(*reinterpret_cast<const typename MemberInfo::Prototype*>(reinterpret_cast<const uint8_t*>(&fields) + offsets[count++])...);
             QJsonObject derived = serialiser.serialise_to_json().toObject();
             for (auto i = derived.begin(); i != derived.end(); ++i)
                 result.insert(i.key(), std::move(i.value()));
@@ -1197,8 +1215,11 @@ namespace JsonDeserialise {
             : DeserialisableBase(json_name, Trait::OBJECT), value(source), name{ name1, name2 } {}
 
         virtual void assign(const QJsonValue& data) override {
-            if (!data.isObject() && !data.isNull())
+            if (!data.isObject()) {
+                if (data.isNull() && (uint8_t(flag) & uint8_t(Trait::OPTIONAL)))
+                    return;
                 throw std::ios_base::failure("Type Unmatch!");
+            }
             Type1& element1 = value.first;
             Type2& element2 = value.second;
             DeserialisableType<Type1> deserialiser1(element1);
@@ -1363,7 +1384,7 @@ namespace JsonDeserialise {
             value = convertor.convertor(tmp);
         }
         virtual QJsonValue to_json() const override {
-            throw std::ios_base::failure("Serialisation Unsupportted!");
+            throw std::ios_base::failure("Serialisation Undefined!");
         }
     };
 
@@ -1398,7 +1419,7 @@ namespace JsonDeserialise {
             : DeserialisableBase(json_name), src(source), convertor(convertor), prototype(value) {}
 
         virtual void assign(const QJsonValue& data) override {
-            throw std::ios_base::failure("Deserialisation Unsupportted!");
+            throw std::ios_base::failure("Deserialisation Undefined!");
         }
         virtual QJsonValue to_json() const override {
             value = convertor.convertor(src);
@@ -1518,7 +1539,7 @@ namespace JsonDeserialise {
 
     template <typename pack, int N, int current = 0, typename Result = ConstexprArrayPack<>,
         bool = N == current, typename = std::enable_if_t<(N <= pack::length)>>
-        struct ConstexprArrayPackFront;
+    struct ConstexprArrayPackFront;
 
     template <typename pack, int N, int current, int... Last>
     struct ConstexprArrayPackFront<pack, N, current, ConstexprArrayPack<Last...>, false> {
@@ -1876,12 +1897,12 @@ namespace JsonDeserialise {
 
     template <>
     struct Deserialisable<int> {
-        using Type = Integer<int>;
+        using Type = Integer<int, true, sizeof(int)>;
     };
 
     template <>
     struct Deserialisable<unsigned> {
-        using Type = Integer<unsigned, false>;
+        using Type = Integer<unsigned, false, sizeof(unsigned)>;
     };
 
     template <>
@@ -1956,7 +1977,8 @@ namespace JsonDeserialise {
 #define declare_object_array_deserialiser(json_name, data_name, var_name, object_type, ...)        \
     JsonDeserialise::ObjectArray var_name(json_name, data_name, (object_type*)nullptr, __VA_ARGS__);
 #define array_field(object_type, json_name, member_name)                                           \
-    JsonDeserialise::Info<decltype(((object_type*)nullptr)->member_name)>(json_name, offsetof(object_type, member_name))
+    JsonDeserialise::Info<decltype(((object_type*)nullptr)->member_name)>                          \
+        (QStringLiteral(json_name), offsetof(object_type, member_name))
 
 // Global
 #define set_object_alias(object_type, alias)                                                       \
@@ -1967,7 +1989,7 @@ namespace JsonDeserialise {
     namespace JsonDeserialise {                                                                    \
         constexpr char object_type##_##member_name[] = json_name;                                  \
     };
-#define register_object_member_with_extension(object_type, json_name, member_name, json_type, convertor, deconvertor)                              \
+#define register_object_member_with_extension(object_type, json_name, member_name, json_type, convertor, deconvertor)\
     namespace JsonDeserialise {                                                                    \
         constexpr char object_type##_##member_name[] = json_name;                                  \
         using object_type##_##member_name##_##json_type##_##Extension_Convertor_ =                 \
