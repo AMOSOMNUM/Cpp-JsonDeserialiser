@@ -21,7 +21,7 @@ Using Qt's Json Library(But it doesn't relies on, and may support more json libr
 |LimitedArray|T[N]、std::array\<T, N>|
 |MapArray|std::map\<KeyType, ValueType>|
 |Pair|std::pair\<KeyType, ValueType>|
-|NonTrivial|alignment same as an Existing Type|
+|EnumAs|treated same as an Existing Type|
 |DerivedObject|Support single inheritance|
 |Extension|an Existing Type to Any|
 |VerientObject|Object to std::variant<br>(Experimental & Untested)|

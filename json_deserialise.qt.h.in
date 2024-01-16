@@ -1,0 +1,217 @@
+// THIS FILE IS GENERATED AUTOMATICALLY,
+// AND SHOULD NOT BE INCLUDED DIRECTLY
+#ifndef JSON_DESERIALISER_QT_H
+#define JSON_DESERIALISER_QT_H
+
+#define DEFAULT_JSON_LIBRARY @JSON_DESERIALISE_DEFAULT_JSON_LIBRARY @
+#cmakedefine QT_DEFAULT
+
+#include <ios>
+
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QString>
+
+#define QT_IS_NULL(json) ((json).isNull())
+#define QT_IS_ARRAY(json) ((json).isArray())
+#define QT_IS_OBJECT(json) ((json).isObject())
+#define QT_IS_STRING(json) ((json).isString())
+#define QT_IS_NUMBER(json) ((json).isDouble())
+#define QT_IS_BOOL(json) ((json).isBool())
+#define QT_GET_ARRAY(json) ((json).toArray())
+#define QT_GET_OBJECT(json) ((json).toObject())
+#define QT_GET_STRING(json) ((json).toString())
+#define QT_GET_DOUBLE(json) ((json).toDouble())
+#define QT_GET_INT(json) ((json).toInt())
+#define QT_GET_UINT(json) ((json).toUInt())
+#define QT_GET_BOOL(json) ((json).toBool())
+
+#define QT_OBJECT_CONTAINS_KEY(object, string) ((object).contains(string))
+
+#define QT_ARRAY_APPEND(array, json) (array).append(json)
+
+#define QT_STRING_LITERAL_WRAP(string) (QStringLiteral(string))
+
+#define QT_UINT_WRAP(integer) ((qint64)(integer))
+
+namespace JsonDeserialise {
+#ifdef QT_DEFAULT
+#define DEFAULT_MODE
+inline
+#endif
+    namespace QT {
+    using STRING_TYPE = QString;
+    using BYTE_ARRAY_TYPE = QByteArray;
+    using JSON_TYPE = QJsonValue;
+    using JSON_ARRAY_TYPE = QJsonArray;
+    using JSON_OBJECT_TYPE = QJsonObject;
+    using BYTE_JSON_ARRAY_TYPE = QByteArray;
+
+    inline int QT_STRING_TO_INT_THROW(const QString& str) {
+        bool ok;
+        int result = str.toInt(&ok);
+        if (!ok)
+                throw std::ios_base::failure("Type Unmatch!");
+        return result;
+    }
+    inline unsigned QT_STRING_TO_UINT_THROW(const QString& str) {
+        bool ok;
+        unsigned result = str.toUInt(&ok);
+        if (!ok)
+                throw std::ios_base::failure("Type Unmatch!");
+        return result;
+    }
+    inline unsigned QT_STRING_TO_DOUBLE_THROW(const QString& str) {
+        bool ok;
+        double result = str.toDouble(&ok);
+        if (!ok)
+                throw std::ios_base::failure("Type Unmatch!");
+        return result;
+    }
+
+    template <typename T>
+    struct StringConvertor {
+        static constexpr bool value = false;
+    };
+    template <>
+    struct StringConvertor<char*> {
+        static constexpr bool value = true;
+        static inline char* convert(const QString& str) {
+            const auto& src = str.toUtf8();
+            char* des = new char[src.length() + 1];
+            strncpy(des, src.constData(), src.length());
+            des[src.length()] = '\0';
+            return des;
+        }
+        static inline QString deconvert(const char* src) {
+            return src;
+        }
+    };
+    template <>
+    struct StringConvertor<const char*> : public StringConvertor<char*> {};
+    template <>
+    struct StringConvertor<QString> {
+        static constexpr bool value = true;
+        static inline const QString& convert(const QString& str) {
+            return str;
+        }
+        static inline const QString& deconvert(const QString& src) {
+            return src;
+        }
+    };
+    template <>
+    struct StringConvertor<std::string> {
+        static constexpr bool value = true;
+        static inline std::string convert(const QString& str) {
+            return str.toStdString();
+        }
+        static inline QString deconvert(const std::string& src) {
+            return QString::fromStdString(src);
+        }
+    };
+    template <>
+    struct StringConvertor<QByteArray> {
+        static constexpr bool value = true;
+        static inline QByteArray convert(const QString& str) {
+            return str.toUtf8();
+        }
+        static inline QString deconvert(const QByteArray& src) {
+            return QString::fromUtf8(src);
+        }
+    };
+} // namespace QT
+} // namespace JsonDeserialise
+
+#include "json_deserialise.qt.hpp"
+
+// Implementation
+namespace JsonDeserialise {
+namespace QT {
+    template <typename... Args>
+    void JsonDeserialiser<Args...>::deserialiseFile(const QString& filepath) {
+        QFile file(filepath);
+        if (!file.open(QFile::ReadOnly))
+            throw std::ios_base::failure("Failed to Open File!");
+        deserialise(file.readAll());
+        file.close();
+    }
+    template <typename... Args>
+    void JsonDeserialiser<Args...>::deserialise(const QByteArray& json) {
+        QJsonParseError parser;
+        QJsonDocument result = QJsonDocument::fromJson(json, &parser);
+        if (parser.error != QJsonParseError::NoError)
+            throw std::ios_base::failure("JSON Parsing Failed!");
+        if (result.isArray())
+            deserialise(result.array());
+        else if (result.isObject())
+            deserialise(result.object());
+    }
+    template <typename... Args>
+    void JsonDeserialiser<Args...>::deserialise(const char* json) {
+        deserialise(QByteArray(json));
+    }
+    template <typename... Args>
+    void JsonDeserialiser<Args...>::deserialise(const QString& json) {
+        deserialise(json.toUtf8());
+    }
+    template <typename... Args>
+    QByteArray JsonDeserialiser<Args...>::serialise(bool compress) const {
+        auto result = serialise_to_json();
+#ifndef NDEBUG
+        if (!result.isArray() && !result.isObject())
+            throw std::ios_base::failure("Invalid root JSON!");
+#endif
+        QJsonDocument json;
+        if (result.isArray())
+            json.setArray(result.toArray());
+        else
+            json.setObject(result.toObject());
+        return json.toJson(QJsonDocument::JsonFormat(compress));
+    }
+    template <typename... Args>
+    void JsonDeserialiser<Args...>::serialise_to_file(const QString& filepath, bool compress) const {
+        const auto data = serialise(compress);
+        QFile file(filepath);
+        if (!file.open(QFile::WriteOnly))
+            throw std::ios_base::failure("Failed to Open File!");
+        file.write(data);
+        file.close();
+    }
+
+    template <size_t length>
+    void String<char[length]>::assign(const QJsonValue& json) {
+        if (!QT_IS_STRING(json) && !QT_IS_NULL(json))
+            throw std::ios_base::failure("Type Unmatch!");
+        auto str = QT_GET_STRING(json).toUtf8();
+        const char* c_str = str.constData();
+        size_t size = str.length() >= length ? length - 1 : str.length();
+        strncpy(value(), c_str, size);
+        value()[size] = '\0';
+    }
+} // namespace QT
+} // namespace JsonDeserialise
+
+// Special Type Support
+namespace JsonDeserialise {
+namespace QT {
+    template <typename T>
+    struct Deserialisable<QList<T>> : public ArrayTypeInfo<QList<T>, T> {
+        using Type = _DeserialisableType<QList<T>, true, -1, T>;
+    };
+
+    template <typename Key, typename Value>
+    struct Deserialisable<QMap<Key, Value>> : public MapTypeInfo<QMap<Key, Value>, Key, Value> {
+        using Type = Map<QMap<Key, Value>, Key, Value>;
+    };
+
+    template <typename T>
+    struct Deserialisable<QSet<T>> : public ArrayTypeInfo<QSet<T>, T> {
+        using Type = _DeserialisableType<QSet<T>, true, -1, T>;
+    };
+} // namespace QT
+} // namespace JsonDeserialise
+
+#endif // JSON_DESERIALISER_QT_H
