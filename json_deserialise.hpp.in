@@ -124,8 +124,10 @@ namespace @LIB_ID@ {
 
         template <typename T>
         inline T& value() {
+#ifdef _DEBUG
             if (!data_ptr)
                 throw std::ios_base::failure("Null Pointer or Read-only!");
+#endif
             return *reinterpret_cast<T*>(data_ptr);
         }
 
@@ -143,8 +145,10 @@ namespace @LIB_ID@ {
 
     template <typename T>
     inline static void deserialise_each(const JSON_OBJECT_TYPE& object, DeserialisableBase&& each) {
+#ifdef _DEBUG
         if (!size_t(each.info.flag))
             throw std::ios_base::failure("JSON Structure Declaration Invalid!");
+#endif
         bool contain = @LIB_ID@_OBJECT_CONTAINS_KEY(object, each.identifier);
         if (!(contain || (size_t(each.info.flag) & size_t(Trait::OPTIONAL))))
             throw std::ios_base::failure("JSON Structure Incompatible!");
@@ -185,11 +189,8 @@ namespace @LIB_ID@ {
                 (deserialise_each<Args>(object, *data[count++]), ...);
             }
         }
-        void deserialise(const JSON_ARRAY_TYPE& array) {
-            if constexpr (N == 1)
-                ((typename PackToType<Args...>::Type*)data[0])->assign(array);
-            else
-                throw std::ios_base::failure("JSON Structure Incompatible!");
+        std::enable_if_t<N == 1> deserialise(const JSON_ARRAY_TYPE& array) {
+            ((typename PackToType<Args...>::Type*)data[0])->assign(array);
         }
         BYTE_ARRAY_TYPE serialise(bool compress = false) const;
         JSON_TYPE serialise_to_json() const {
@@ -214,20 +215,30 @@ namespace @LIB_ID@ {
         Boolean(const STRING_TYPE& name, const bool& source) : DeserialisableBase(&source, name) {}
 
         void assign(const JSON_TYPE& json) {
-            if (@LIB_ID@_IS_STRING(json)) {
+            if (@LIB_ID@_IS_BOOL(json))
+                value<Target>() = @LIB_ID@_GET_BOOL(json);
+            else if (@LIB_ID@_IS_STRING(json)) {
                 auto str = @LIB_ID@_GET_STRING(json).toLower();
                 if (str == @LIB_ID@_STRING_LITERAL_WRAP("true"))
                     value<Target>() = true;
                 else if (str == @LIB_ID@_STRING_LITERAL_WRAP("false"))
                     value<Target>() = false;
+                else if (str == @LIB_ID@_STRING_LITERAL_WRAP("1"))
+                    value<Target>() = true;
+                else if (str == @LIB_ID@_STRING_LITERAL_WRAP("0"))
+                    value<Target>() = false;
                 else if (str.isEmpty())
                     value<Target>() = false;
-                throw std::ios_base::failure("Type Unmatch!");
+                else
+                    throw std::ios_base::failure("Type Unmatch!");
             } else if (@LIB_ID@_IS_NULL(json))
                 value<Target>() = false;
-            else if (@LIB_ID@_IS_BOOL(json))
-                value<Target>() = @LIB_ID@_GET_BOOL(json);
-            else
+            else if (@LIB_ID@_IS_NUMBER(json)) {
+                int val = @LIB_ID@_GET_INT(json);
+                if (val & -2)
+                    throw std::ios_base::failure("Type Unmatch!");
+                value<Target>() = val;
+            } else
                 throw std::ios_base::failure("Type Unmatch!");
         }
         JSON_TYPE to_json() const {
@@ -499,7 +510,7 @@ namespace @LIB_ID@ {
             for (const auto& i : @LIB_ID@_GET_ARRAY(json)) {
                 if (!@LIB_ID@_IS_STRING(i) && !@LIB_ID@_IS_NULL(i))
                     throw std::ios_base::failure("Type Unmatch!");
-                if (count > N - 1)
+                if (count == N)
                     throw std::ios_base::failure("Array Out of Range!");
                 DeserialisableBase::value<Target>()[count++] =
                     StringConvertor<StringType>::convert(@LIB_ID@_GET_STRING(i));
@@ -525,7 +536,7 @@ namespace @LIB_ID@ {
                 throw std::ios_base::failure("Type Unmatch!");
             int count = 0;
             for (const auto& i : @LIB_ID@_GET_ARRAY(json)) {
-                if (count > N - 1)
+                if (count == N)
                     throw std::ios_base::failure("Array Out of Range!");
                 if (!@LIB_ID@_IS_NULL(i))
                     DeserialisableBase::value<Target>()[count++] =
@@ -538,22 +549,24 @@ namespace @LIB_ID@ {
         }
     };
 
-    template <auto member_offset>
-    struct ObjectArrayInfo : public STRING_TYPE {};
+    template <typename T, auto member_offset>
+    struct ObjectArrayInfo : public STRING_TYPE {
+        using Prototype = DeserialisableType<decltype(((T*)nullptr)->member_offset)>;
+    };
 
     template <typename T, auto... Members>
     struct ObjectArray : public DeserialisableBase {
         using Target = T;
         using ObjectType = typename Deserialisable<Target>::TypeInArray;
-        STRING_TYPE identifiers[sizeof...(Members)];
+        const STRING_TYPE identifiers[sizeof...(Members)];
 
-        ObjectArray(T& source, ObjectArrayInfo<Members>&&... members)
+        ObjectArray(T& source, ObjectArrayInfo<ObjectType, Members>&&... members)
             : DeserialisableBase(&source, Trait::ARRAY), identifiers{std::move(members)...} {}
-        ObjectArray(const STRING_TYPE& name, T& source, ObjectArrayInfo<Members>&&... members)
+        ObjectArray(const STRING_TYPE& name, T& source, ObjectArrayInfo<ObjectType, Members>&&... members)
             : DeserialisableBase(&source, name), identifiers{std::move(members)...} {}
-        ObjectArray(const T& source, ObjectArrayInfo<Members>&&... members)
+        ObjectArray(const T& source, ObjectArrayInfo<ObjectType, Members>&&... members)
             : DeserialisableBase(&source), identifiers{std::move(members)...} {}
-        ObjectArray(const STRING_TYPE& name, const T& source, ObjectArrayInfo<Members>&&... members)
+        ObjectArray(const STRING_TYPE& name, const T& source, ObjectArrayInfo<ObjectType, Members>&&... members)
             : DeserialisableBase(&source, name), identifiers{std::move(members)...} {}
 
         void assign(const JSON_TYPE& json) {
@@ -566,17 +579,15 @@ namespace @LIB_ID@ {
                 const STRING_TYPE* ptr = identifiers;
                 if constexpr (!GetArrayInsertWay<T, ObjectType>::insert_only) {
                     ObjectType& obj = GetArrayInsertWay<T, ObjectType>::push_back(value<Target>());
-                    (deserialise_each<DeserialisableType<std::decay_t<decltype(obj.*Members)>>>(
+                    (deserialise_each<typename ObjectArrayInfo<ObjectType, Members>::Prototype>(
                          @LIB_ID@_GET_OBJECT(i),
-                         DeserialisableType<std::decay_t<decltype(obj.*Members)>>(*ptr++,
-                                                                                  obj.*Members)),
+                         typename ObjectArrayInfo<ObjectType, Members>::Prototype(*ptr++, obj.*Members)),
                      ...);
                 } else {
                     ObjectType obj;
-                    (deserialise_each<DeserialisableType<std::decay_t<decltype(obj.*Members)>>>(
+                    (deserialise_each<typename ObjectArrayInfo<ObjectType, Members>::Prototype>(
                          @LIB_ID@_GET_OBJECT(i),
-                         DeserialisableType<std::decay_t<decltype(obj.*Members)>>(*ptr++,
-                                                                                  obj.*Members)),
+                         typename ObjectArrayInfo<ObjectType, Members>::Prototype(*ptr++, obj.*Members)),
                      ...);
                     value<Target>().insert(std::move(obj));
                 }
@@ -586,9 +597,8 @@ namespace @LIB_ID@ {
             JSON_ARRAY_TYPE array;
             for (const auto& i : value<Target>()) {
                 const STRING_TYPE* ptr = identifiers;
-                (append_each<DeserialisableType<std::decay_t<decltype(i.*Members)>>>(
-                     array,
-                     DeserialisableType<std::decay_t<decltype(i.*Members)>>(*ptr++, i.*Members)),
+                (append_each<typename ObjectArrayInfo<ObjectType, Members>::Prototype>(
+                     array, typename ObjectArrayInfo<ObjectType, Members>::Prototype(*ptr++, i.*Members)),
                  ...);
             }
             return array;
@@ -608,9 +618,9 @@ namespace @LIB_ID@ {
 
         void assign(const JSON_TYPE& json) {
             static_assert(bool(GetArrayInsertWay<T, TypeInArray>::value));
-            if (!QT_IS_ARRAY(json) && !QT_IS_NULL(json))
+            if (!@LIB_ID@_IS_ARRAY(json) && !@LIB_ID@_IS_NULL(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : QT_GET_ARRAY(json)) {
+            for (const auto& i : @LIB_ID@_GET_ARRAY(json)) {
                 if constexpr (!GetArrayInsertWay<T, TypeInArray>::insert_only) {
                     Prototype deserialiser(
                         GetArrayInsertWay<T, TypeInArray>::push_back(value<Target>()));
@@ -666,7 +676,7 @@ namespace @LIB_ID@ {
             else {
                 int count = 0;
                 for (const auto& i : @LIB_ID@_GET_ARRAY(json)) {
-                    if (count > N - 1)
+                    if (count == N)
                         throw std::ios_base::failure("Array Out of Range!");
                     Prototype deserialiser(DeserialisableBase::value<Target>()[count++]);
                     deserialiser.assign(i);
@@ -1492,8 +1502,9 @@ namespace @LIB_ID@ {
 #define @lib@_declare_array_of_object_deserialiser(json_name, data_name, var_name, ...)            \
     JsonDeserialise::@LIB_ID@::ObjectArray var_name(json_name, data_name, __VA_ARGS__);
 #define @lib@_array_field(object_type, json_name, member_name)                                     \
-    static_cast<JsonDeserialise::@LIB_ID@::ObjectArrayInfo<&object_type::member_name>&&>(          \
-        @LIB_ID@##_##STRING_LITERAL_WRAP(json_name))
+    static_cast<                                                                                   \
+        JsonDeserialise::@LIB_ID@::ObjectArrayInfo<object_type, &object_type::member_name>&&>(     \
+        @LIB_ID@_STRING_LITERAL_WRAP(json_name))
 
 // Global
 #define @lib@_object_member(object_type, member_name)                                              \
@@ -1744,14 +1755,14 @@ namespace @LIB_ID@ {
     @lib@_object_member_with_extension(object_type, member_name, extension)
 #define optional_object_member_with_extension(object_type, member_name, extension)                 \
     @lib@_optional_object_member_with_extension(object_type, member_name, extension)
-#define register_object_member_with_deserialise_only_extension(object_type, json_name, member_name,\
-                                                               convertor)                          \
+#define register_object_member_with_deserialise_only_extension(object_type, json_name,             \
+                                                               member_name, convertor)             \
     @lib@_register_object_member_with_deserialise_only_extension(object_type, json_name,           \
                                                                  member_name, convertor)
 #define register_object_member_with_serialise_only_extension(object_type, json_name, member_name,  \
                                                              deconvertor)                          \
-    @lib@_register_object_member_with_serialise_only_extension(object_type, json_name, member_name,\
-                                                               deconvertor)
+    @lib@_register_object_member_with_serialise_only_extension(object_type, json_name,             \
+                                                               member_name, deconvertor)
 #define declare_endofunctor(name, type, functor) @lib@_declare_endofunctor(name, type, functor)
 #define register_object_member_with_endofunctor(object_type, json_name, member_name, functor)      \
     @lib@_register_object_member_with_endofunctor(object_type, json_name, member_name, functor)
