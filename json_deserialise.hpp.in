@@ -124,6 +124,8 @@ namespace @LIB_ID@ {
 
         template <typename T>
         inline T& value() {
+            if (!data_ptr)
+                throw std::ios_base::failure("Null Pointer or Read-only!");
             return *reinterpret_cast<T*>(data_ptr);
         }
 
@@ -166,13 +168,8 @@ namespace @LIB_ID@ {
         const std::enable_if_t<N && isValid<Args...>(), DeserialisableBase*> data[N];
 
     public:
-#ifdef NDEBUG
         JsonDeserialiser(Args&... args) : data{&args...} {}
-#else
-        const Trait root_trait;
-        JsonDeserialiser(Args&... args) : data{&args...}, root_trait(data[0]->info.flag) {}
-#endif
-        // Implementation Needed
+
         void deserialiseFile(const STRING_TYPE& filepath);
         void deserialise(const char* json);
         void deserialise(const STRING_TYPE& json);
@@ -181,12 +178,6 @@ namespace @LIB_ID@ {
 
     public:
         void deserialise(const JSON_OBJECT_TYPE& object) {
-#ifndef NDEBUG
-            if (!size_t(root_trait))
-                throw std::ios_base::failure("JSON Structure Declaration Invalid!");
-            if (size_t(root_trait) & size_t(Trait::ARRAY))
-                throw std::ios_base::failure("JSON Structure Incompatible!");
-#endif
             if constexpr (N == 1)
                 ((typename PackToType<Args...>::Type*)data[0])->assign(object);
             else {
@@ -197,9 +188,8 @@ namespace @LIB_ID@ {
         void deserialise(const JSON_ARRAY_TYPE& array) {
             if constexpr (N == 1)
                 ((typename PackToType<Args...>::Type*)data[0])->assign(array);
-#ifndef NDEBUG
-            throw std::ios_base::failure("JSON Structure Incompatible!");
-#endif
+            else
+                throw std::ios_base::failure("JSON Structure Incompatible!");
         }
         BYTE_ARRAY_TYPE serialise(bool compress = false) const;
         JSON_TYPE serialise_to_json() const {
@@ -485,7 +475,8 @@ namespace @LIB_ID@ {
                                              char>)
                     @LIB_ID@_ARRAY_APPEND(array, i ? i : JSON_TYPE());
                 else
-                    @LIB_ID@_ARRAY_APPEND(array, i ? StringConvertor<StringType>::deconvert(*i) : JSON_TYPE());
+                    @LIB_ID@_ARRAY_APPEND(array, i ? StringConvertor<StringType>::deconvert(*i)
+                                                   : JSON_TYPE());
             return array;
         }
     };
@@ -652,8 +643,7 @@ namespace @LIB_ID@ {
         LimitedArray(const STRING_TYPE& name, Target& source, bool optional = false)
             : Base(name, source, optional) {}
         LimitedArray(const Target& source) : Base(source) {}
-        LimitedArray(const STRING_TYPE& name, const Target& source)
-            : Base(name, source) {}
+        LimitedArray(const STRING_TYPE& name, const Target& source) : Base(name, source) {}
 
         void assign(const JSON_TYPE& json) {
             if (!@LIB_ID@_IS_ARRAY(json) && !@LIB_ID@_IS_NULL(json))
@@ -1030,6 +1020,12 @@ namespace @LIB_ID@ {
             return Type(tmp).to_json();
         }
     };
+    template <typename Des, typename ConvertFunctor>
+    SerialiseOnlyExtension(ConvertFunctor&&, Des&)
+        -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
+    template <typename Des, typename ConvertFunctor>
+    SerialiseOnlyExtension(ConvertFunctor&&, const STRING_TYPE&, Des&, bool)
+        -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
 
     template <typename Des, typename ConvertFunctor = Des(const JSON_TYPE&),
               typename DeconvertFunctor = JSON_TYPE(const Des&),
@@ -1264,17 +1260,17 @@ namespace @LIB_ID@ {
 
     template <typename TypeInRef, typename Prototype = DeserialisableType<std::decay_t<TypeInRef>>>
     using RefWrap = Prototype;
-    
+
     template <typename Any>
     struct Deserialisable<Any&> {
         using Type = RefWrap<std::decay_t<Any>>;
     };
-    
+
     template <typename Any>
     struct Deserialisable<Any&&> {
         using Type = RefWrap<std::decay_t<Any>>;
     };
-    
+
     template <typename Any>
     struct Deserialisable<const Any&> {
         using Type = RefWrap<std::decay_t<Any>>;
@@ -1475,10 +1471,8 @@ namespace @LIB_ID@ {
     JsonDeserialise::@LIB_ID@::DeserialiseOnlyExtension var_name((convertor), json_name, data_name);
 #define @lib@_declare_one_direction_extension_serialiser(json_name, data_name, var_name,           \
                                                          deconvertor)                              \
-    JsonDeserialise::@LIB_ID@::SerialiseOnlyExtension<                                             \
-        JsonDeserialise::@LIB_ID@::SerialiseOnlyConvertor<decltype(data_name),                     \
-                                                          decltype(deconvertor)>>                  \
-        var_name((deconvertor), json_name, std::as_const(data_name));
+    JsonDeserialise::@LIB_ID@::SerialiseOnlyExtension var_name((deconvertor), json_name,           \
+                                                               std::as_const(data_name));
 #define @lib@_declare_top_map_of_object_object_deserialiser(data_name, key_name, var_name)         \
     typename JsonDeserialise::@LIB_ID@::Deserialisable<decltype(data_name)>::_OBJECT_MAP_          \
         var_name(data_name, key_name);
@@ -1591,6 +1585,54 @@ namespace @LIB_ID@ {
         using Type =                                                                               \
             JsonDeserialise::@LIB_ID@::object_type##_##member_name##_##json_type##_##Extension_;   \
     };
+#define @lib@_register_object_member_with_deserialise_only_extension(object_type, json_name,       \
+                                                                     member_name, convertor)       \
+    register_object_member(object_type, json_name, member_name);                                   \
+    namespace JsonDeserialise {                                                                    \
+        namespace @LIB_ID@ {                                                                       \
+            using object_type##_##member_name##_##json_type##_##Deserialise_Only_Base_ =           \
+                decltype(DeserialiseOnlyExtension(convertor,                                       \
+                                                  ((object_type*)nullptr)->member_name));          \
+            struct object_type##_##member_name##_##json_type##_##Deserialise_Only_Extension_       \
+                : public object_type##_##member_name##_##json_type##_##Deserialise_Only_Base_ {    \
+                using Base = object_type##_##member_name##_##json_type##_##Deserialise_Only_Base_; \
+                template <typename... Args>                                                        \
+                object_type##_##member_name##_##json_type##_##Deserialise_Only_Extension_(         \
+                    Args&&... args)                                                                \
+                    : Base((convertor), args...) {}                                                \
+            };                                                                                     \
+        }                                                                                          \
+    }                                                                                              \
+    template <>                                                                                    \
+    struct JsonDeserialise::@LIB_ID@::Customised<decltype(((object_type*)nullptr)->member_name),   \
+                                                 JsonDeserialise::object_type##_##member_name,     \
+                                                 &object_type::member_name> {                      \
+        using Type = object_type##_##member_name##_##json_type##_##Deserialise_Only_Extension_;    \
+    };
+#define @lib@_register_object_member_with_serialise_only_extension(object_type, json_name,         \
+                                                                   member_name, deconvertor)       \
+    register_object_member(object_type, json_name, member_name);                                   \
+    namespace JsonDeserialise {                                                                    \
+        namespace @LIB_ID@ {                                                                       \
+            using object_type##_##member_name##_##json_type##_##Serialise_Only_Base_ =             \
+                decltype(SerialiseOnlyExtension(deconvertor,                                       \
+                                                ((object_type*)nullptr)->member_name));            \
+            struct object_type##_##member_name##_##json_type##_##Serialise_Only_Extension_         \
+                : public object_type##_##member_name##_##json_type##_##Serialise_Only_Base_ {      \
+                using Base = object_type##_##member_name##_##json_type##_##Serialise_Only_Base_;   \
+                template <typename... Args>                                                        \
+                object_type##_##member_name##_##json_type##_##Serialise_Only_Extension_(           \
+                    Args&&... args)                                                                \
+                    : Base((deconvertor), args...) {}                                              \
+            };                                                                                     \
+        }                                                                                          \
+    }                                                                                              \
+    template <>                                                                                    \
+    struct JsonDeserialise::@LIB_ID@::Customised<decltype(((object_type*)nullptr)->member_name),   \
+                                                 JsonDeserialise::object_type##_##member_name,     \
+                                                 &object_type::member_name> {                      \
+        using Type = object_type##_##member_name##_##json_type##_##Serialise_Only_Extension_;      \
+    };
 #define @lib@_object_member_with_extension(object_type, member_name, extension)                    \
     JsonDeserialise::@LIB_ID@::ReinforcedInfo<                                                     \
         decltype(((object_type*)nullptr)->member_name),                                            \
@@ -1702,6 +1744,14 @@ namespace @LIB_ID@ {
     @lib@_object_member_with_extension(object_type, member_name, extension)
 #define optional_object_member_with_extension(object_type, member_name, extension)                 \
     @lib@_optional_object_member_with_extension(object_type, member_name, extension)
+#define register_object_member_with_deserialise_only_extension(object_type, json_name, member_name,\
+                                                               convertor)                          \
+    @lib@_register_object_member_with_deserialise_only_extension(object_type, json_name,           \
+                                                                 member_name, convertor)
+#define register_object_member_with_serialise_only_extension(object_type, json_name, member_name,  \
+                                                             deconvertor)                          \
+    @lib@_register_object_member_with_serialise_only_extension(object_type, json_name, member_name,\
+                                                               deconvertor)
 #define declare_endofunctor(name, type, functor) @lib@_declare_endofunctor(name, type, functor)
 #define register_object_member_with_endofunctor(object_type, json_name, member_name, functor)      \
     @lib@_register_object_member_with_endofunctor(object_type, json_name, member_name, functor)
