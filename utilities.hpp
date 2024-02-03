@@ -1,94 +1,9 @@
 #ifndef JSON_DESERIALISE_UTILITIES_H
 #define JSON_DESERIALISE_UTILITIES_H
 
-#include <cstdint>
 #include <type_traits>
 
-namespace JsonDeserialise {
-enum class Trait : uint8_t {
-    NUL = 0,
-    OBJECT = 1,
-    ARRAY = 2,
-    FIELD = 4,
-    OPTIONAL = 8,
-};
-
-enum class ArrayInsertWay : uint8_t {
-    Unknown = 0,
-    Emplace_Back = 1,
-    Push_Back = 2,
-    Append = 4,
-    Insert = 8
-};
-
-template <typename T, typename Element>
-struct GetArrayInsertWay {
-    static constexpr ArrayInsertWay calculate() {
-        ArrayInsertWay result = ArrayInsertWay::Unknown;
-
-        if (is_emplaceback<T, Element>(nullptr))
-            result = ArrayInsertWay(uint8_t(result) | uint8_t(ArrayInsertWay::Emplace_Back));
-        if (is_pushback<T, Element>(nullptr))
-            result = ArrayInsertWay(uint8_t(result) | uint8_t(ArrayInsertWay::Push_Back));
-        if (is_append<T, Element>(nullptr))
-            result = ArrayInsertWay(uint8_t(result) | uint8_t(ArrayInsertWay::Append));
-        if (is_insert<T, Element>(nullptr))
-            result = ArrayInsertWay(uint8_t(result) | uint8_t(ArrayInsertWay::Insert));
-
-        return result;
-    }
-    template <typename U, typename V, typename = decltype(std::declval<U>().emplace_back())>
-    static constexpr bool is_emplaceback(int* p) {
-        return true;
-    }
-    template <typename...>
-    static constexpr bool is_emplaceback(...) {
-        return false;
-    }
-    template <typename U, typename V,
-              typename = decltype(std::declval<U>().push_back(std::declval<V>()))>
-    static constexpr bool is_pushback(int* p) {
-        return true;
-    }
-    template <typename...>
-    static constexpr bool is_pushback(...) {
-        return false;
-    }
-    template <typename U, typename V,
-              typename = decltype(std::declval<U>().append(std::declval<V>()))>
-    static constexpr bool is_append(int* p) {
-        return true;
-    }
-    template <typename...>
-    static constexpr bool is_append(...) {
-        return false;
-    }
-    template <typename U, typename V,
-              typename = decltype(std::declval<U>().insert(std::declval<V>()))>
-    static constexpr bool is_insert(int* p) {
-        return true;
-    }
-    template <typename...>
-    static constexpr bool is_insert(...) {
-        return false;
-    }
-    static constexpr ArrayInsertWay value = calculate();
-    static constexpr bool insert_only = value == ArrayInsertWay::Insert;
-
-    inline static Element& push_back(T& container) {
-        if constexpr (uint8_t(value) & uint8_t(ArrayInsertWay::Emplace_Back))
-            return container.emplace_back();
-        else {
-            if constexpr (uint8_t(value) & uint8_t(ArrayInsertWay::Push_Back))
-                container.push_back(Element());
-            else if constexpr (uint8_t(value) & uint8_t(ArrayInsertWay::Append))
-                container.append(Element());
-            return container.back();
-        }
-    }
-};
-} // namespace JsonDeserialise
-
+inline namespace JsonDeserialise {
 // unwrap a pack that has only one type
 template <typename Front, typename...>
 struct PackToType;
@@ -96,6 +11,16 @@ struct PackToType;
 template <typename Front>
 struct PackToType<Front> {
     using Type = Front;
+};
+
+template <typename Function>
+struct ArgTypeDeduction {
+    using Type = typename ArgTypeDeduction<decltype(&Function::operator())>::Type;
+};
+
+template <typename R, class C, typename Arg>
+struct ArgTypeDeduction<R (C::*)(Arg) const> {
+    using Type = Arg;
 };
 
 template <int... pack>
@@ -277,5 +202,6 @@ template <>
 struct TypeTuple<void> {
     static constexpr int length = 0;
 };
+} // namespace JsonDeserialise
 
 #endif

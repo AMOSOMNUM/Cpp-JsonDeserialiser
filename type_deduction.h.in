@@ -1,0 +1,34 @@
+#ifndef JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_HEADER
+#define JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_HEADER
+
+#include <type_traits>
+
+inline namespace JsonDeserialise {
+
+namespace @LIB_ID@_ {
+
+    template <typename Any, bool isArray = false, int size = -1, typename TypeInArray = void,
+              int isNullable = -1, typename TypeInNullable = void, int isString = -1>
+    struct _Deserialisable;
+
+    template <typename Any, bool isArray = false, int size = -1, typename TypeInArray = void,
+              int isNullable = -1, typename TypeInNullable = void, int isString = -1>
+    using _DeserialisableType =
+        typename _Deserialisable<std::decay_t<Any>, isArray, size, TypeInArray, isNullable,
+                                 TypeInNullable, isString>::Type;
+
+    template <typename Any>
+    struct Deserialisable {
+        using Type = _DeserialisableType<std::decay_t<Any>>;
+    };
+
+    template <typename T, const char* json_name, auto member_offset>
+    struct Customised {
+        using Type = typename Deserialisable<T>::Type;
+    };
+
+} // namespace @LIB_ID@_
+
+} // namespace JsonDeserialise
+
+#endif // JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_HEADER

@@ -1,0 +1,225 @@
+#ifndef JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_
+#define JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_
+
+#include "json_deserialise.hpp"
+#include "type_deduction.@lib@.h"
+
+#include <list>
+#include <map>
+#include <set>
+#include <vector>
+
+inline namespace JsonDeserialise {
+
+namespace @LIB_ID@_ {
+
+    using Impl = Deserialiser<@LIB_ID@>;
+
+    template <typename T>
+    using StringConvertor = typename @LIB_ID@::template StringConvertor<T>;
+
+    template <typename T>
+    struct is_string {
+        static constexpr bool value = StringConvertor<T>::value;
+    };
+
+    template <typename T>
+    struct is_nullable {
+        using Type = void;
+        static constexpr bool value = false;
+    };
+    template <typename T>
+    struct is_nullable<std::optional<T>> {
+        using Type = T;
+        static constexpr bool value = true;
+    };
+    template <typename T>
+    struct is_nullable<T*> {
+        using Type = T;
+        static constexpr bool value = true;
+    };
+    template <>
+    struct is_nullable<const char*> {
+        using Type = const char*;
+        static constexpr bool value = true;
+    };
+    template <>
+    struct is_nullable<char*> {
+        using Type = char*;
+        static constexpr bool value = true;
+    };
+
+    template <typename TypeInRef,
+              typename Prototype = typename Deserialisable<std::decay_t<TypeInRef>>::Type>
+    using RefWrap = Prototype;
+
+    template <typename Any>
+    struct Deserialisable<Any&> {
+        using Type = RefWrap<std::decay_t<Any>>;
+    };
+
+    template <typename Any>
+    struct Deserialisable<Any&&> {
+        using Type = RefWrap<std::decay_t<Any>>;
+    };
+
+    template <typename Any>
+    struct Deserialisable<const Any&> {
+        using Type = RefWrap<std::decay_t<Any>>;
+    };
+
+    template <typename Any>
+    struct _Deserialisable<Any, false, -1, void, -1, void, -1> {
+        using Type = _DeserialisableType<Any, false, -1, void, is_nullable<Any>::value,
+                                         typename is_nullable<Any>::Type, -1>;
+    };
+
+    template <typename Any>
+    struct _Deserialisable<Any, false, -1, void, false, void, -1> {
+        using Type = _DeserialisableType<Any, false, -1, void, false, void, is_string<Any>::value>;
+    };
+
+    template <typename T, typename TypeInNullable>
+    struct _Deserialisable<T, false, -1, void, true, TypeInNullable, -1> {
+        using Type = _DeserialisableType<T, false, -1, void, true, TypeInNullable,
+                                         is_string<TypeInNullable>::value>;
+    };
+
+    template <typename T, typename TypeInArray>
+    struct _Deserialisable<T, true, -1, TypeInArray, -1, void, -1> {
+        using Type = _DeserialisableType<T, true, -1, TypeInArray, is_nullable<TypeInArray>::value,
+                                         typename is_nullable<TypeInArray>::Type, -1>;
+    };
+
+    template <typename T, typename TypeInArray>
+    struct _Deserialisable<T, true, -1, TypeInArray, false, void, -1> {
+        using Type = _DeserialisableType<T, true, -1, TypeInArray, false, void,
+                                         is_string<TypeInArray>::value>;
+    };
+
+    template <typename T, typename TypeInArray, typename TypeInNullable>
+    struct _Deserialisable<T, true, -1, TypeInArray, true, TypeInNullable, -1> {
+        using Type = _DeserialisableType<T, true, -1, TypeInArray, true, TypeInNullable,
+                                         is_string<TypeInNullable>::value>;
+    };
+
+    // Strings
+
+    template <typename StringType>
+    struct _Deserialisable<StringType, false, -1, void, false, void, true> {
+        using Type = Impl::String<StringType>;
+    };
+
+    template <typename T, typename StringType>
+    struct _Deserialisable<T, false, -1, void, true, StringType, true> {
+        using Type = Impl::NullableString<T, StringType>;
+    };
+
+    template <typename T, typename TypeInNullable>
+    struct _Deserialisable<T, false, -1, void, true, TypeInNullable, false> {
+        using Type = Impl::Nullable<T, TypeInNullable>;
+    };
+
+    // Containers
+
+    template <typename T, typename StringType>
+    struct _Deserialisable<T, true, -1, StringType, false, void, true> {
+        using Type = Impl::StringArray<T, StringType>;
+    };
+
+    template <typename T, typename Nullable, typename StringType>
+    struct _Deserialisable<T, true, -1, Nullable, true, StringType, true> {
+        using Type = Impl::NullableStringArray<T, Nullable, StringType>;
+    };
+
+    template <typename ArrayType, typename T>
+    struct _Deserialisable<ArrayType, true, -1, T, false, void, false> {
+        using Type = Impl::Array<ArrayType, T>;
+    };
+
+    template <typename ArrayType, typename T, int N>
+    struct _Deserialisable<ArrayType, true, N, T, -1, void, -1> {
+        using Type = Impl::LimitedArray<ArrayType, T, N>;
+    };
+
+    template <typename T, typename StringType, int N>
+    struct _Deserialisable<T, true, N, StringType, false, void, true> {
+        using Type = Impl::LimitedStringArray<T, StringType, N>;
+    };
+
+    template <typename T, typename Nullable, typename StringType, int N>
+    struct _Deserialisable<T, true, N, Nullable, true, StringType, true> {
+        using Type = Impl::LimitedNullableStringArray<T, Nullable, StringType, N>;
+    };
+
+    template <typename TypeInArray, std::size_t N>
+    struct Deserialisable<TypeInArray[N]> {
+        using Type = _DeserialisableType<TypeInArray[N], true, N, TypeInArray>;
+    };
+
+    template <typename TypeInArray, std::size_t N>
+    struct Deserialisable<std::array<TypeInArray, N>> {
+        using Type = _DeserialisableType<std::array<TypeInArray, N>, true, N, TypeInArray>;
+    };
+
+    template <typename T, typename Alloc>
+    struct Deserialisable<std::vector<T, Alloc>>
+        : public Impl::ArrayTypeInfo<std::vector<T, Alloc>, T> {
+        using Type = _DeserialisableType<std::vector<T, Alloc>, true, -1, T>;
+    };
+
+    template <typename T, typename Alloc>
+    struct Deserialisable<std::list<T, Alloc>>
+        : public Impl::ArrayTypeInfo<std::list<T, Alloc>, T> {
+        using Type = _DeserialisableType<std::list<T, Alloc>, true, -1, T>;
+    };
+
+    template <typename T, typename Comp, typename Alloc>
+    struct Deserialisable<std::set<T, Comp, Alloc>>
+        : public Impl::ArrayTypeInfo<std::set<T, Comp, Alloc>, T> {
+        using Type = _DeserialisableType<std::set<T, Comp, Alloc>, true, -1, T>;
+    };
+
+    template <typename Key, typename Value, typename Comp, typename Alloc>
+    struct Deserialisable<std::map<Key, Value, Comp, Alloc>>
+        : public Impl::MapTypeInfo<std::map<Key, Value, Comp, Alloc>, Key, Value> {
+        using Type = Impl::Map<std::map<Key, Value, Comp, Alloc>, Key, Value>;
+    };
+
+    template <typename First, typename Second>
+    struct Deserialisable<std::pair<First, Second>> {
+        using Type = Impl::Pair<std::pair<First, Second>, First, Second>;
+    };
+
+    // Basic Types
+
+    template <>
+    struct Deserialisable<bool> {
+        using Type = Impl::Boolean;
+    };
+
+    template <>
+    struct Deserialisable<int> {
+        using Type = Impl::Integer<true, sizeof(int)>;
+    };
+
+    template <>
+    struct Deserialisable<unsigned> {
+        using Type = Impl::Integer<false, sizeof(unsigned)>;
+    };
+
+    template <>
+    struct Deserialisable<double> {
+        using Type = Impl::Real<double>;
+    };
+
+    template <size_t length>
+    struct Deserialisable<char[length]> {
+        using Type = Impl::String<char[length]>;
+    };
+
+} // namespace @LIB_ID@_
+
+} // namespace JsonDeserialise
+
+#endif // JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_

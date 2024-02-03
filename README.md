@@ -1,50 +1,45 @@
 # JsonDeserialiser
 
-Using Qt's Json Library(But it doesn't relies on, and may support more json libraries in the near future!), it converts json into various types or data structures through static declaration by using template of Modern C++(Some traits require C++17).
+Serialise and Deserialise json from various types and data structures, performing *compile-time reflection* with TMP(*template metaprogramming*) of Modern C++(requires C++17 or later).  
+Currently only support Qt Json Library and will support nlohmann soon.
+
+Headers only!  
+You just need to set includepath in cmake and include autogen file "json_deserialise.h".
 
 ## Basic Types
 
-|BasicType|Type in C++|
+|Trait|Type in C++|
 |:-|:-|
 |Integer|signed、unsigned|
 |Real|double|
 |Boolean|bool|
-|String|QString、char*、std::string、QByteArray|
-|Object|struct/class|
+|String|char[]、char*、QString、std::string、QByteArray|
+|Object|struct/class with more than one fields|
+|Json|QJsonValue|
+|||
 
-## Advanced Types
+## Advanced
 
-|TypeName|Type in C++|
+|Trait|Type in C++|
 |:-|:-|
 |Nullable|T*、std::optional\<T>|
+|Ref|T&、const T&、T&&|
 |Array|std::vector\<T>、std::set\<T>、std::list\<T>、QList\<T>、QSet\<T> e.t.c.|
 |LimitedArray|T[N]、std::array\<T, N>|
-|MapArray|std::map\<KeyType, ValueType>|
+|Map|std::map\<KeyType, ValueType>|
 |Pair|std::pair\<KeyType, ValueType>|
-|EnumAs|Treated same as an Existing Type|
+|AsTrivial|Treated same as an Existing Type<br>e.g. enum as integer|
 |DerivedObject|Support single inheritance|
-|Extension|An Existing Type to Any|
-|Ref|Ref of an Existing Type|
-|VerientObject|Object to std::variant<br>(Experimental & Untested)|
+|SelfDeserialise|A Class with json constructor and to_json method|
+|Extension|An Existing Type to and from Any<br>e.g. enum to string<br>One-direction is also supported|
+|EndoFunctor|A special Extension used for further actions right after deserialisation|
+|Optional|An Optional Field|
+|VerientObject<br>(Experimental)|[finished]std::variant<br>[TODO]support downcast|
+|||
 
-## Functional API
+## Simple Usage
 
-EndoFunctor: allows you to check or transform the data deserialised
-
-## Usage
-
-### 1. For Trivial Types
-
-```c++
-TypeA a;
-TypeB b;
-declare_deserialiser("A", a, a_holder);
-declare_deserialiser("B", b, b_holder);
-JsonDeserialise::JsonDeserialiser deserialiser(a_holder, b_holder);
-deserialiser.deserialiseFile(FILENAME);
-```
-
-### 2.For Normal struct/class
+Supose you have a json like below:
 
 ```json
 {
@@ -53,88 +48,80 @@ deserialiser.deserialiseFile(FILENAME);
 }
 ```
 
+### 1. For Discrete Data
+
 ```c++
-struct Sample {
-    TypeA a;
-    TypeB b;
-    ......
-};
+QJsonObject json;
+TypeA a;
+TypeB b;
+declare_deserialiser("A", a, a_holder);
+declare_deserialiser("B", b, b_holder);
+declare_top_object_deserialiser(deserialiser, a_holder, b_holder);
+// From File
+deserialiser.deserialise_file(FILENAME);
+// From String
+deserialiser.deserialise(R"({
+    "A":"TypeAData",
+    "B":"TypeBData"
+})");
+// From Json
+deserialiser.deserialise(json);
+// To File
+deserialise.serialise_to_file(FILENAME);
+// To String
+std::cout << deserialiser.serialise();
+// To Json
+json = deserialise.serialise_to_json().toObject();
 ```
 
-#### Simple Usage
+### 2. For Class
 
 ```c++
+struct Simple {
+    TypeA a;
+    TypeB b;
+};
+
 QJsonObject json;
 Sample obj;
 declare_deserialiser("A", obj.a, a_holder);
 declare_deserialiser("B", obj.b, b_holder);
 declare_top_object_deserialiser(deserialiser, a_holder, b_holder);
-deserialiser.deserialise(json);
+deserialiser.deserialise(json); // And two other methods.
+std::cout << deserialiser.serialise(); // And two other methods.
 ```
 
-#### Globally Register It!
+#### Try to Globally Register It
+
+If you want to enable global refelction.  
+You should do this in global namespace since our reflection informations are all staticly placed in an inline namespace called JsonDeserialise.
 
 ```c++
-//After Definition
+// Class Sample Definition Here
 register_object_member(Sample, "A", a);
 register_object_member(Sample, "B", b);
 declare_object(Sample,
     object_member(Sample, a),
     object_member(Sample, b)
 );
-......
-//when using
+
+// Somewhere
 Sample s;
-declare_top_deserialiser(s, holder);
-JsonDeserialise::JsonDeserialiser deserialiser(holder);
-deserialiser.deserialiseFile(FILENAME);
+QJsonObject json;
+declare_top_deserialiser(s, deserialiser);
+deserialiser.assign(json); // json only
+json = deserialiser.to_json().toObject(); // json only
+//Also
+declare_top_object_deserialiser(s, serialiser);
+json = s.deserialise_to_json(); // And two other methods.
+s.deserialise_file(FILENAME); // And two other methods.
 ```
 
-#### For container
+### 3. For Enum
 
-### 3.For Map(that is embedded)
+#### as string
 
-```json
-[
-    {
-        "Key":1,
-        "Num":114514,
-        "Name":"田所浩二"
-    }
-]
-```
-
-```c++
-//if you have a class like:
-struct Person {
-    int num;
-    QString name;
-};
-//A map like this
-std::map<int, Person> namelist;
-```
-
-```c++
-//After Definition
-register_object_member(Person, "Num", num);
-register_object_member(Person, "Name", name);
-declare_object(Person,
-    object_member(Person, num),
-    object_member(Person, name)
-);
-......
-//when using
-declare_top_object_map_deserialiser(namelist, "Key", holder);
-JsonDeserialise::JsonDeserialiser deserialiser(holder);
-//From file
-deserialiser.deserialiseFile(FILENAME);
-//From json_string
-deserialiser.deserialise("[{"Key":1,"Num":114514,"Name":"田所浩二"}]");
-```
-
-## Extension
-
-Example I:
+An Enum like below:
 
 ```c++
 enum class Type {
@@ -144,13 +131,29 @@ QString enum2str(Type);
 Type str2enum(const QString&);
 ```
 
+A field like below
+
 ```json
-"Type":"A"
+"Enum":"A"
 ```
 
 ```c++
 Type sample;
-declare_extension_deserialiser("Type", sample, holder, str2enum, enum2str);
-JsonDeserialise::JsonDeserialiser deserialiser(holder);
-deserialiser.deserialise("{\"Type\":\"A\"}");
+declare_extension_deserialiser("Enum", sample, holder, str2enum, enum2str);
+qDebug() << holder.to_json();
+```
+
+#### as integer
+
+
+An Enum like below:
+
+```c++
+enum class Type : int {
+    A, B, C
+} sample;
+declare_as_trivial(Type, int);
+
+declare_deserialiser("Enum", sample, holder);
+qDebug() << holder.to_json();
 ```

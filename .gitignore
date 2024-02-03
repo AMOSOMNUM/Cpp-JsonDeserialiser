@@ -1,6 +1,9 @@
 #generated
-json_deserialise*.h
-json_deserialise*.hpp
+json_deserialise.h
+json_deserialise.hpp
+macros.*.h
+type_deduction.*.h
+type_deduction.*.hpp
 
 #vs
 .vs/
