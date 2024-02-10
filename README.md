@@ -143,8 +143,23 @@ declare_extension_deserialiser("Enum", sample, holder, str2enum, enum2str);
 qDebug() << holder.to_json();
 ```
 
-#### as integer
+##### Globally Register It
 
+```c++
+// This declaration enables reflection to all fields of this enum type.
+declare_global_extension(Type, str2enum, enum2str);
+
+struct XXX {
+    //Other fields...
+    Type enum_field;
+};
+
+declare_object(XXX, object_member(XXX, enum_field)
+//Other fields...
+);
+```
+
+#### as integer
 
 An Enum like below:
 

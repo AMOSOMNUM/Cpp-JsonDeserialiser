@@ -50,10 +50,10 @@
         var_name(json_name, data_name, ##__VA_ARGS__);
 #define @lib@_declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)           \
     Deserialiser<@LIB_ID@>::DeserialisableType<decltype(data_name)> var_name(                      \
-        data_name, json_name1, json_name2);
+        json_name1, json_name2, data_name);
 #define @lib@_declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)    \
     Deserialiser<@LIB_ID@>::DeserialisableType<decltype(data_name)> var_name(                      \
-        json_name, data_name, json_name1, json_name2);
+        json_name1, json_name2, json_name, data_name);
 // Fields should be more than one
 #define @lib@_declare_top_object_deserialiser(var_name, field1, ...)                               \
     Deserialiser<@LIB_ID@>::JsonDeserialiser var_name(field1, __VA_ARGS__);
@@ -124,7 +124,6 @@
     };                                                                                             \
     }
 
-// So far support 2 arguments at most
 #define @lib@_register_object_member_with_style(object_type, json_name, member_name, style, ...)   \
     register_object_member(object_type, json_name, member_name);                                   \
     namespace JsonDeserialise::@LIB_ID@_ {                                                         \
@@ -140,8 +139,8 @@
         using Base = typename object_type##_##member_name##_Style_Type::Type;                      \
         template <typename... Args>                                                                \
         object_type##_##member_name##_Style(Args&&... args)                                        \
-            : Base(std::forward<Args>(args)...,                                                    \
-                   object_type##_##member_name##_Style_Args.get<pack>()...) {}                     \
+            : Base(object_type##_##member_name##_Style_Args.template get<pack>()...,               \
+                   std::forward<Args>(args)...) {}                                                 \
     };                                                                                             \
     template <>                                                                                    \
     struct Customised<decltype(((object_type*)nullptr)->member_name), object_type##_##member_name, \

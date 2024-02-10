@@ -101,6 +101,7 @@ struct Deserialiser {
     template <typename T, const char* json_name, auto member_offset>
     using Customised = typename Lib::template Customised<T, json_name, member_offset>;
 
+    using StringRvalueRef = typename Lib::String&&;
     using StringConstRef = const typename Lib::String&;
     using StringConst = const typename Lib::String;
     using Json = typename Lib::Json;
@@ -163,9 +164,14 @@ struct Deserialiser {
         DeserialisableBase(void* ptr, Trait _as = Trait::NUL) : data_ptr(ptr), info(_as) {}
         DeserialisableBase(void* ptr, StringConstRef name, bool optional = false)
             : data_ptr(ptr), info(optional ? Trait::OPTIONAL : Trait::FIELD), identifier(name) {}
+        DeserialisableBase(void* ptr, StringRvalueRef name, bool optional = false)
+            : data_ptr(ptr), info(optional ? Trait::OPTIONAL : Trait::FIELD),
+              identifier(std::move(name)) {}
         DeserialisableBase(const void* ptr) : data_ptr(nullptr), info(ptr) {}
         DeserialisableBase(const void* ptr, StringConstRef name)
             : data_ptr(nullptr), info(ptr), identifier(name) {}
+        DeserialisableBase(const void* ptr, StringRvalueRef name)
+            : data_ptr(nullptr), info(ptr), identifier(std::move(name)) {}
         DeserialisableBase(const DeserialisableBase&) = delete;
         DeserialisableBase& operator=(const DeserialisableBase&) = delete;
 
@@ -260,14 +266,26 @@ struct Deserialiser {
         }
     };
 
-    struct Boolean : public DeserialisableBase {
+    template <typename T>
+    struct DeserialisableBaseHelper : public DeserialisableBase {
+        DeserialisableBaseHelper(T& source) : DeserialisableBase(&source) {}
+        DeserialisableBaseHelper(StringConstRef name, T& source, bool optional = false)
+            : DeserialisableBase(&source, name, optional) {}
+        DeserialisableBaseHelper(StringRvalueRef name, T& source, bool optional = false)
+            : DeserialisableBase(&source, std::move(name), optional) {}
+        DeserialisableBaseHelper(const T& source) : DeserialisableBase(&source) {}
+        DeserialisableBaseHelper(StringConstRef name, const T& source)
+            : DeserialisableBase(&source, name) {}
+        DeserialisableBaseHelper(StringRvalueRef name, const T& source)
+            : DeserialisableBase(&source, std::move(name)) {}
+    };
+
+    struct Boolean : public DeserialisableBaseHelper<bool> {
+        using Base = DeserialisableBaseHelper<bool>;
         using Target = bool;
 
-        Boolean(bool& source) : DeserialisableBase(&source) {}
-        Boolean(StringConstRef name, bool& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Boolean(const bool& source) : DeserialisableBase(&source) {}
-        Boolean(StringConstRef name, const bool& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Boolean(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (Lib::is_bool(json))
@@ -305,20 +323,20 @@ struct Deserialiser {
     struct Integer;
 
     template <>
-    struct Integer<true, sizeof(int)> : public DeserialisableBase {
+    struct Integer<true, sizeof(int)> : public DeserialisableBaseHelper<int> {
+        using Base = DeserialisableBaseHelper<int>;
         using Target = int;
 
-        Integer(int& source) : DeserialisableBase(&source) {}
-        Integer(StringConstRef name, int& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Integer(const int& source) : DeserialisableBase(&source) {}
-        Integer(StringConstRef name, const int& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (Lib::is_number(json))
                 this->template value<Target>() = Lib::get_int(json);
             else if (Lib::is_string(json))
                 this->template value<Target>() = Lib::str2int(Lib::get_string(json));
+            else if (Lib::is_null(json))
+                this->template value<Target>() = 0;
             else
                 throw std::ios_base::failure("Type Unmatch!");
         }
@@ -328,20 +346,20 @@ struct Deserialiser {
     };
 
     template <>
-    struct Integer<false, sizeof(unsigned)> : public DeserialisableBase {
+    struct Integer<false, sizeof(unsigned)> : public DeserialisableBaseHelper<unsigned> {
+        using Base = DeserialisableBaseHelper<unsigned>;
         using Target = unsigned;
 
-        Integer(unsigned& source) : DeserialisableBase(&source) {}
-        Integer(StringConstRef name, unsigned& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Integer(const unsigned& source) : DeserialisableBase(&source) {}
-        Integer(StringConstRef name, const unsigned& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (Lib::is_number(json))
                 this->template value<Target>() = Lib::get_uint(json);
             else if (Lib::is_string(json))
                 this->template value<Target>() = Lib::str2uint(Lib::get_string(json));
+            else if (Lib::is_null(json))
+                this->template value<Target>() = 0;
             else
                 throw std::ios_base::failure("Type Unmatch!");
         }
@@ -354,14 +372,12 @@ struct Deserialiser {
     struct Real;
 
     template <>
-    struct Real<double> : public DeserialisableBase {
+    struct Real<double> : public DeserialisableBaseHelper<double> {
+        using Base = DeserialisableBaseHelper<double>;
         using Target = double;
 
-        Real(double& source) : DeserialisableBase(&source) {}
-        Real(StringConstRef name, double& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Real(const double& source) : DeserialisableBase(&source) {}
-        Real(StringConstRef name, const double& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Real(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (Lib::is_number(json))
@@ -377,14 +393,12 @@ struct Deserialiser {
     };
 
     template <typename T>
-    struct String : public DeserialisableBase {
+    struct String : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
 
-        String(Target& source) : DeserialisableBase(&source) {}
-        String(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        String(const Target& source) : DeserialisableBase(&source) {}
-        String(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        String(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_string(json) && !Lib::is_null(json))
@@ -398,8 +412,12 @@ struct Deserialiser {
     };
 
     template <size_t length>
-    struct String<char[length]> : public DeserialisableBase {
+    struct String<char[length]> : public DeserialisableBaseHelper<char[length]> {
+        using Base = DeserialisableBaseHelper<char[length]>;
         using Target = char[length];
+
+        template <typename... Args>
+        String(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         inline char* value() const noexcept {
             return reinterpret_cast<char*>(DeserialisableBase::data_ptr);
@@ -409,12 +427,6 @@ struct Deserialiser {
                                                      ? DeserialisableBase::data_ptr
                                                      : DeserialisableBase::info.const_ptr);
         }
-
-        String(char* source) : DeserialisableBase(source) {}
-        String(StringConstRef name, char* source, bool optional = false)
-            : DeserialisableBase(source, name, optional) {}
-        String(const char* source) : DeserialisableBase(source) {}
-        String(StringConstRef name, const char* source) : DeserialisableBase(source, name) {}
 
         inline void assign(const Json& json) {
             if (!Lib::is_string(json) && !Lib::is_null(json))
@@ -427,15 +439,12 @@ struct Deserialiser {
     };
 
     template <typename T, typename StringType>
-    struct NullableString : public DeserialisableBase {
+    struct NullableString : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
 
-        NullableString(Target& source) : DeserialisableBase(&source) {}
-        NullableString(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        NullableString(const Target& source) : DeserialisableBase(&source) {}
-        NullableString(StringConstRef name, const Target& source)
-            : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        NullableString(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_string(json) && !Lib::is_null(json))
@@ -455,15 +464,12 @@ struct Deserialiser {
     };
 
     template <typename T, typename StringType>
-    struct StringArray : public DeserialisableBase {
+    struct StringArray : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
 
-        StringArray(Target& source) : DeserialisableBase(&source, Trait::ARRAY) {}
-        StringArray(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        StringArray(const Target& source) : DeserialisableBase(&source) {}
-        StringArray(StringConstRef name, const Target& source)
-            : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        StringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             static_assert(bool(GetArrayInsertWay<T, StringType>::value));
@@ -495,15 +501,12 @@ struct Deserialiser {
     };
 
     template <typename T, typename NullableStringType, typename StringType>
-    struct NullableStringArray : public DeserialisableBase {
+    struct NullableStringArray : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
 
-        NullableStringArray(Target& source) : DeserialisableBase(&source, Trait::ARRAY) {}
-        NullableStringArray(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        NullableStringArray(const Target& source) : DeserialisableBase(&source) {}
-        NullableStringArray(StringConstRef name, const Target& source)
-            : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        NullableStringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -558,11 +561,8 @@ struct Deserialiser {
         using Base = StringArray<T, StringType>;
         using Target = T;
 
-        LimitedStringArray(Target& source) : Base(source) {}
-        LimitedStringArray(StringConstRef name, Target& source, bool optional = false)
-            : Base(name, source, optional) {}
-        LimitedStringArray(const Target& source) : Base(source) {}
-        LimitedStringArray(StringConstRef name, const Target& source) : Base(name, source) {}
+        template <typename... Args>
+        LimitedStringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -585,12 +585,8 @@ struct Deserialiser {
         using Base = NullableStringArray<T, NullableStringType, StringType>;
         using Target = T;
 
-        LimitedNullableStringArray(Target& source) : Base(source) {}
-        LimitedNullableStringArray(StringConstRef name, Target& source, bool optional = false)
-            : Base(name, source, optional) {}
-        LimitedNullableStringArray(const Target& source) : Base(source) {}
-        LimitedNullableStringArray(StringConstRef name, const Target& source)
-            : Base(name, source) {}
+        template <typename... Args>
+        LimitedNullableStringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -616,21 +612,15 @@ struct Deserialiser {
     };
 
     template <typename T, auto... Members>
-    struct ObjectArray : public DeserialisableBase {
+    struct ObjectArray : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
+
+        template <typename... Args>
+        ObjectArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
         using ObjectType = typename Lib::template Deserialisable<Target>::TypeInArray;
         StringConst identifiers[sizeof...(Members)];
-
-        ObjectArray(T& source, ObjectArrayInfo<ObjectType, Members>&&... members)
-            : DeserialisableBase(&source, Trait::ARRAY), identifiers{std::move(members)...} {}
-        ObjectArray(StringConstRef name, T& source,
-                    ObjectArrayInfo<ObjectType, Members>&&... members)
-            : DeserialisableBase(&source, name), identifiers{std::move(members)...} {}
-        ObjectArray(const T& source, ObjectArrayInfo<ObjectType, Members>&&... members)
-            : DeserialisableBase(&source), identifiers{std::move(members)...} {}
-        ObjectArray(StringConstRef name, const T& source,
-                    ObjectArrayInfo<ObjectType, Members>&&... members)
-            : DeserialisableBase(&source, name), identifiers{std::move(members)...} {}
 
         void assign(const Json& json) {
             static_assert(bool(GetArrayInsertWay<T, ObjectType>::value));
@@ -673,15 +663,14 @@ struct Deserialiser {
     };
 
     template <typename T, typename TypeInArray>
-    struct Array : public DeserialisableBase {
+    struct Array : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
-        using Prototype = DeserialisableType<TypeInArray>;
 
-        Array(Target& source) : DeserialisableBase(&source, Trait::ARRAY) {}
-        Array(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Array(const Target& source) : DeserialisableBase(&source) {}
-        Array(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Array(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+        using Prototype = DeserialisableType<TypeInArray>;
 
         void assign(const Json& json) {
             static_assert(bool(GetArrayInsertWay<T, TypeInArray>::value));
@@ -716,11 +705,8 @@ struct Deserialiser {
         using Target = T;
         using Prototype = DeserialisableType<TypeInArray>;
 
-        LimitedArray(Target& source) : Base(source) {}
-        LimitedArray(StringConstRef name, Target& source, bool optional = false)
-            : Base(name, source, optional) {}
-        LimitedArray(const Target& source) : Base(source) {}
-        LimitedArray(StringConstRef name, const Target& source) : Base(name, source) {}
+        template <typename... Args>
+        LimitedArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -753,14 +739,12 @@ struct Deserialiser {
     };
 
     template <typename T, typename TypeInNullable>
-    struct Nullable : public DeserialisableBase {
+    struct Nullable : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
 
-        Nullable(Target& source) : DeserialisableBase(&source) {}
-        Nullable(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Nullable(const Target& source) : DeserialisableBase(&source) {}
-        Nullable(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Nullable(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (Lib::is_null(json)) {
@@ -789,9 +773,13 @@ struct Deserialiser {
         AsTrivial(Target& source) : Base(reinterpret_cast<As&>(source)) {}
         AsTrivial(StringConstRef name, Target& source, bool optional = false)
             : Base(name, reinterpret_cast<As&>(source), optional) {}
+        AsTrivial(StringRvalueRef name, Target& source, bool optional = false)
+            : Base(std::move(name), reinterpret_cast<As&>(source), optional) {}
         AsTrivial(const Target& source) : Base(reinterpret_cast<const As&>(source)) {}
         AsTrivial(StringConstRef name, const Target& source)
             : Base(name, reinterpret_cast<const As&>(source)) {}
+        AsTrivial(StringRvalueRef name, const Target& source)
+            : Base(std::move(name), reinterpret_cast<const As&>(source)) {}
     };
 
     template <typename T, const char* json_name, size_t json_name_length, auto member_offset,
@@ -806,15 +794,13 @@ struct Deserialiser {
         static constexpr bool optional = optional_member;
     };
 
-    template <typename ObjectType, typename... MemberInfo>
-    struct Object : public DeserialisableBase {
-        using Target = ObjectType;
+    template <typename T, typename... MemberInfo>
+    struct Object : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
+        using Target = T;
 
-        Object(Target& source) : DeserialisableBase(&source, Trait::OBJECT) {}
-        Object(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        Object(const Target& source) : DeserialisableBase(&source) {}
-        Object(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        Object(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_object(json) && !Lib::is_null(json))
@@ -841,13 +827,11 @@ struct Deserialiser {
         using Base = DeserialisableType<BaseType>;
         using Target = Derived;
 
-        DerivedObject(Target& source) : Base(source) {}
-        DerivedObject(StringConstRef name, Target& source, bool optional = false)
-            : Base(name, source, optional) {}
-        DerivedObject(const Target& source) : Base(source) {}
-        DerivedObject(StringConstRef name, const Target& source) : Base(name, source) {}
+        template <typename... Args>
+        DerivedObject(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
+            static_assert(std::is_base_of_v<BaseType, Derived>);
             if (!Lib::is_object(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             Base::assign(json);
@@ -869,16 +853,13 @@ struct Deserialiser {
         }
     };
 
-    template <typename ObjectType>
-    struct SelfDeserialisableObject : public DeserialisableBase {
-        using Target = ObjectType;
+    template <typename T>
+    struct SelfDeserialisableObject : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
+        using Target = T;
 
-        SelfDeserialisableObject(Target& source) : DeserialisableBase(&source, Trait::OBJECT) {}
-        SelfDeserialisableObject(StringConstRef name, ObjectType& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        SelfDeserialisableObject(const Target& source) : DeserialisableBase(&source) {}
-        SelfDeserialisableObject(StringConstRef name, const ObjectType& source)
-            : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        SelfDeserialisableObject(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
             if (!Lib::is_object(json) && !Lib::is_null(json))
@@ -891,20 +872,25 @@ struct Deserialiser {
     };
 
     template <typename T, typename KeyType, typename ValueType>
-    struct PairArrayMap : public DeserialisableBase {
+    struct PairArrayMap : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
-        StringConst key[2];
 
-        PairArrayMap(Target& source, StringConstRef key_name, StringConstRef value_name)
-            : DeserialisableBase(&source, Trait::ARRAY), key{key_name, value_name} {}
-        PairArrayMap(StringConstRef name, Target& source, StringConstRef key_name,
-                     StringConstRef value_name)
-            : DeserialisableBase(&source, name), key{key_name, value_name} {}
-        PairArrayMap(const Target& source, StringConstRef key_name, StringConstRef value_name)
-            : DeserialisableBase(&source), key{key_name, value_name} {}
-        PairArrayMap(StringConstRef name, const Target& source, StringConstRef key_name,
-                     StringConstRef value_name)
-            : DeserialisableBase(&source, name), key{key_name, value_name} {}
+        template <typename String1, typename String2, typename... Args>
+        PairArrayMap(String1&& key_name, String2&& value_name, Args&&... args)
+            : Base(std::forward<Args>(args)...),
+              key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
+        template <typename String1, typename String2>
+        PairArrayMap(T& source, String1&& key_name, String2&& value_name)
+            : Base(source),
+              key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
+        template <typename String, typename String1, typename String2>
+        PairArrayMap(String&& name, T& source, String1&& key_name, String2&& value_name,
+                     bool optional = false)
+            : Base(std::forward<String>(name), source, optional),
+              key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
+
+        StringConst key[2];
 
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -937,18 +923,22 @@ struct Deserialiser {
     };
 
     template <typename T, typename KeyType, typename ValueType>
-    struct ObjectArrayMap : public DeserialisableBase {
+    struct ObjectArrayMap : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
-        StringConst key;
 
-        ObjectArrayMap(Target& source, StringConstRef key_name)
-            : DeserialisableBase(&source, Trait::ARRAY), key(key_name) {}
-        ObjectArrayMap(StringConstRef name, Target& source, StringConstRef key_name)
-            : DeserialisableBase(&source, name), key(key_name) {}
-        ObjectArrayMap(const Target& source, StringConstRef key_name)
-            : DeserialisableBase(&source), key(key_name) {}
-        ObjectArrayMap(StringConstRef name, const Target& source, StringConstRef key_name)
-            : DeserialisableBase(&source, name), key(key_name) {}
+        template <typename String, typename... Args>
+        ObjectArrayMap(String&& key_name, Args&&... args)
+            : Base(std::forward<Args>(args)...), key{std::forward<String>(key_name)} {}
+        template <typename String>
+        ObjectArrayMap(T& source, String&& key_name)
+            : Base(source), key{std::forward<String>(key_name)} {}
+        template <typename String1, typename String2>
+        ObjectArrayMap(String1&& name, T& source, String2&& key_name, bool optional = false)
+            : Base(std::forward<String1>(name), source, optional),
+              key{std::forward<String2>(key_name)} {}
+
+        StringConst key;
 
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -980,17 +970,15 @@ struct Deserialiser {
     };
 
     template <typename T, typename KeyType, typename ValueType>
-    struct StringMap : public DeserialisableBase {
+    struct StringMap : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
 
-        StringMap(Target& source) : DeserialisableBase(&source, Trait::ARRAY) {}
-        StringMap(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        StringMap(const Target& source) : DeserialisableBase(&source) {}
-        StringMap(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        StringMap(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
-            static_assert(Lib::StringConvertor<KeyType>::value);
+            static_assert(StringConvertor<KeyType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& [_key, _value] : Lib::get_object(json)) {
@@ -1008,26 +996,23 @@ struct Deserialiser {
             for (const auto& [key, value] : this->template value<Target>()) {
                 DeserialisableType<KeyType> key_deserialiser(key);
                 DeserialisableType<ValueType> value_deserialiser(value);
-                obj.insert(key_deserialiser.to_json(), value_deserialiser.to_json());
+                obj.insert(Lib::get_string(key_deserialiser.to_json()), value_deserialiser.to_json());
             }
             return obj;
         }
     };
 
     template <typename T, typename Type1, typename Type2>
-    struct Pair : public DeserialisableBase {
+    struct Pair : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
         using Target = T;
-        StringConst name[2];
 
-        Pair(Target& source, StringConstRef name1, StringConstRef name2)
-            : DeserialisableBase(&source, Trait::OBJECT), name{name1, name2} {}
-        Pair(StringConstRef json_name, Target& source, StringConstRef name1, StringConstRef name2)
-            : DeserialisableBase(&source, json_name), name{name1, name2} {}
-        Pair(const Target& source, StringConstRef name1, StringConstRef name2)
-            : DeserialisableBase(&source), name{name1, name2} {}
-        Pair(StringConstRef json_name, const Target& source, StringConstRef name1,
-             StringConstRef name2)
-            : DeserialisableBase(&source, json_name), name{name1, name2} {}
+        template <typename String1, typename String2, typename... Args>
+        Pair(String1&& key_name, String2&& value_name, Args&&... args)
+            : Base(std::forward<Args>(args)...),
+              key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
+
+        StringConst key[2];
 
         void assign(const Json& json) {
             if (!Lib::is_object(json))
@@ -1036,15 +1021,15 @@ struct Deserialiser {
             Type2& element2 = this->template value<Target>().second;
             DeserialisableType<Type1> deserialiser1(element1);
             DeserialisableType<Type2> deserialiser2(element2);
-            deserialiser1.assign(Lib::get_object(json)[name[0]]);
-            deserialiser2.assign(Lib::get_object(json)[name[1]]);
+            deserialiser1.assign(Lib::get_object(json)[key[0]]);
+            deserialiser2.assign(Lib::get_object(json)[key[1]]);
         }
         Json to_json() const {
             typename Lib::JsonObject pair;
             const DeserialisableType<Type1> serialiser1(this->template value<Target>().first);
             const DeserialisableType<Type2> serialiser2(this->template value<Target>().second);
-            pair.insert(name[0], serialiser1.to_json());
-            pair.insert(name[1], serialiser2.to_json());
+            pair.insert(key[0], serialiser1.to_json());
+            pair.insert(key[1], serialiser2.to_json());
             return pair;
         }
     };
@@ -1063,35 +1048,32 @@ struct Deserialiser {
     };
 
     template <typename Convertor>
-    class DeserialiseOnlyExtension : public DeserialisableBase {
-    public:
-        using Type = DeserialisableType<typename Convertor::Type>;
+    struct DeserialiseOnlyExtension : public DeserialisableBase {
         using Target = typename Convertor::Target;
         using Source = typename Convertor::Source;
+        using Prototype = DeserialisableType<typename Convertor::Type>;
 
-    protected:
-        std::decay_t<Convertor> convertor;
-
-    public:
         template <typename T>
         DeserialiseOnlyExtension(T&& convertor, Target& source)
             : DeserialisableBase(&source), convertor(std::forward<T>(convertor)) {}
-        template <typename T>
-        DeserialiseOnlyExtension(T&& convertor, StringConstRef name, Target& source,
-                                 bool optional = false)
-            : DeserialisableBase(&source, name, optional), convertor(std::forward<T>(convertor)) {}
+        template <typename T, typename String>
+        DeserialiseOnlyExtension(T&& convertor, String&& name, Target& source)
+            : DeserialisableBase(&source, std::forward<String>(name)),
+              convertor(std::forward<T>(convertor)) {}
+
+        const std::decay_t<Convertor> convertor;
 
         void assign(const Json& json) {
             Source tmp;
-            Type(tmp).assign(json);
+            Prototype(tmp).assign(json);
             this->template value<Target>() = convertor(tmp);
         }
     };
     template <typename Des, typename ConvertFunctor>
     DeserialiseOnlyExtension(ConvertFunctor&&, Des&)
         -> DeserialiseOnlyExtension<DeserialiseOnlyConvertor<Des, ConvertFunctor>>;
-    template <typename Des, typename ConvertFunctor>
-    DeserialiseOnlyExtension(ConvertFunctor&&, StringConstRef, Des&, bool)
+    template <typename Des, typename ConvertFunctor, typename String>
+    DeserialiseOnlyExtension(ConvertFunctor&&, String&&, Des&, bool)
         -> DeserialiseOnlyExtension<DeserialiseOnlyConvertor<Des, ConvertFunctor>>;
 
     template <typename Des, typename ConvertFunctor,
@@ -1107,33 +1089,31 @@ struct Deserialiser {
     };
 
     template <typename Convertor>
-    class SerialiseOnlyExtension : public DeserialisableBase {
-    public:
-        using Type = DeserialisableType<typename Convertor::Type>;
+    struct SerialiseOnlyExtension : public DeserialisableBase {
         using Target = typename Convertor::Target;
         using Source = typename Convertor::Source;
+        using Prototype = DeserialisableType<typename Convertor::Type>;
 
-    protected:
-        std::decay_t<Convertor> convertor;
-
-    public:
         template <typename T>
         SerialiseOnlyExtension(T&& convertor, const Target& source)
             : DeserialisableBase(&source), convertor(std::forward<T>(convertor)) {}
-        template <typename T>
-        SerialiseOnlyExtension(T&& convertor, StringConstRef name, const Target& source)
-            : DeserialisableBase(&source, name), convertor(std::forward<T>(convertor)) {}
+        template <typename T, typename String>
+        SerialiseOnlyExtension(T&& convertor, String&& name, const Target& source)
+            : DeserialisableBase(&source, std::forward<String>(name)),
+              convertor(std::forward<T>(convertor)) {}
+
+        const std::decay_t<Convertor> convertor;
 
         Json to_json() const {
             auto tmp = convertor(this->template value<Target>());
-            return Type(tmp).to_json();
+            return Prototype(tmp).to_json();
         }
     };
     template <typename Des, typename ConvertFunctor>
     SerialiseOnlyExtension(ConvertFunctor&&, const Des&)
         -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
-    template <typename Des, typename ConvertFunctor>
-    SerialiseOnlyExtension(ConvertFunctor&&, StringConstRef, const Des&, bool)
+    template <typename Des, typename ConvertFunctor, typename String>
+    SerialiseOnlyExtension(ConvertFunctor&&, String&&, const Des&, bool)
         -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
 
     template <typename Des, typename ConvertFunctor = Des(const Json&),
@@ -1177,10 +1157,10 @@ struct Deserialiser {
         Extension(U&& convertor, V&& deconvertor, Target& source)
             : DeserialisableBase(&source),
               convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
-        template <typename U, typename V>
-        Extension(U&& convertor, V&& deconvertor, StringConstRef name, Target& source,
+        template <typename U, typename V, typename String>
+        Extension(U&& convertor, V&& deconvertor, String&& name, Target& source,
                   bool optional = false)
-            : DeserialisableBase(&source, name, optional),
+            : DeserialisableBase(&source, std::forward<String>(name), optional),
               convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
 
         void assign(const Json& json) {
@@ -1197,8 +1177,8 @@ struct Deserialiser {
     template <typename Des, typename ConvertFunctor, typename DeconvertFunctor>
     Extension(ConvertFunctor&&, DeconvertFunctor&&, Des&)
         -> Extension<Convertor<Des, ConvertFunctor, DeconvertFunctor>>;
-    template <typename Des, typename ConvertFunctor, typename DeconvertFunctor>
-    Extension(ConvertFunctor&&, DeconvertFunctor&&, StringConstRef, Des&, bool)
+    template <typename Des, typename ConvertFunctor, typename DeconvertFunctor, typename String>
+    Extension(ConvertFunctor&&, DeconvertFunctor&&, String&&, Des&, bool)
         -> Extension<Convertor<Des, ConvertFunctor, DeconvertFunctor>>;
 
     template <typename Standard, typename Tuple, int current = 0,
@@ -1279,25 +1259,17 @@ struct Deserialiser {
     template <typename... Targets, int... pack>
     class VarientObject<std::variant<Targets...>, ConstexprArrayPack<pack...>>
         : public DeserialisableBase {
-    protected:
         using Target = std::variant<Targets...>;
         StringConst identifier;
-        std::function<int(const Json&)> deductor;
-        StaticTuple<Convertor<Targets>...> convertors;
+        const std::function<int(const Json&)> deductor;
+        const StaticTuple<Convertor<Targets>...> convertors;
 
-    public:
-        template <typename Deductor, typename... Given_Convertors>
-        VarientObject(Target& source, StringConstRef identifier, Deductor&& deduction,
+        template <typename String1, typename String2, typename Deductor,
+                  typename... Given_Convertors>
+        VarientObject(String1&& name, Target& source, String2&& identifier, Deductor&& deduction,
                       Given_Convertors&&... convertors)
-            : DeserialisableBase(&source, Trait::OBJECT), identifier(identifier),
-              deductor(std::forward<Deductor>(deduction)),
-              convertors(ConvertorAdapter<Target, ConstexprArrayPack<pack...>, Given_Convertors...>(
-                             convertors...)
-                             .convertors) {}
-        template <typename Deductor, typename... Given_Convertors>
-        VarientObject(StringConstRef name, Target& source, StringConstRef identifier,
-                      Deductor&& deduction, Given_Convertors&&... convertors)
-            : DeserialisableBase(&source, name), identifier(identifier),
+            : DeserialisableBase(&source, std::forward<String1>(name)),
+              identifier(std::forward<String2>(identifier)),
               deductor(std::forward<Deductor>(deduction)),
               convertors(ConvertorAdapter<Target, ConstexprArrayPack<pack...>, Given_Convertors...>(
                              convertors...)
@@ -1331,15 +1303,14 @@ struct Deserialiser {
     };
 
     template <typename T, typename Prototype = DeserialisableType<T>>
-    class EndoExtension : public Prototype {
-        std::function<void(T&)> functor;
+    struct EndoExtension : public Prototype {
+        const std::function<void(T&)> functor;
 
-    public:
         template <typename Functor>
         EndoExtension(Functor&& f, T& source) : Prototype(source), functor(f) {}
-        template <typename Functor>
-        EndoExtension(Functor&& f, StringConstRef json_name, T& source, bool optional = false)
-            : Prototype(json_name, source, optional), functor(f) {}
+        template <typename Functor, typename String>
+        EndoExtension(Functor&& f, String&& name, T& source, bool optional = false)
+            : Prototype(std::forward<String>(name), source, optional), functor(f) {}
 
         void assign(const Json& json) {
             Prototype::assign(json);
@@ -1347,15 +1318,12 @@ struct Deserialiser {
         }
     };
 
-    class JSONWrap : public DeserialisableBase {
+    struct JSONWrap : public DeserialisableBaseHelper<Json> {
+        using Base = DeserialisableBaseHelper<Json>;
         using Target = Json;
 
-    public:
-        JSONWrap(Target& source) : DeserialisableBase(&source) {}
-        JSONWrap(StringConstRef name, Target& source, bool optional = false)
-            : DeserialisableBase(&source, name, optional) {}
-        JSONWrap(const Target& source) : DeserialisableBase(&source) {}
-        JSONWrap(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        template <typename... Args>
+        JSONWrap(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         inline void assign(const Json& json) {
             this->template value<Target>() = json;

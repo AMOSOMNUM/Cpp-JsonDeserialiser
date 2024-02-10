@@ -236,7 +236,15 @@ struct ConstexprStaticTuple<Current> {
 };
 
 template <>
-struct ConstexprStaticTuple<void> {};
+struct ConstexprStaticTuple<void> {
+    template <int index, typename = std::enable_if_t<index == 0>>
+    constexpr inline decltype(auto) get() const {
+        return nullptr;
+    }
+};
+
+template <typename... Types>
+ConstexprStaticTuple(Types...)->ConstexprStaticTuple<Types...>;
 
 } // namespace JsonDeserialise
 
