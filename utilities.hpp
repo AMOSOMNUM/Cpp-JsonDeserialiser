@@ -4,6 +4,7 @@
 #include <type_traits>
 
 inline namespace JsonDeserialise {
+
 // unwrap a pack that has only one type
 template <typename Front, typename...>
 struct PackToType;
@@ -202,6 +203,41 @@ template <>
 struct TypeTuple<void> {
     static constexpr int length = 0;
 };
+
+template <typename Current = void, typename... Types>
+struct ConstexprStaticTuple {
+    Current value;
+    using Next = ConstexprStaticTuple<Types...>;
+    Next next;
+    using CurrentType = std::decay_t<Current>;
+
+    constexpr ConstexprStaticTuple(Current source, Types... pack) : value{source}, next{pack...} {}
+
+    template <int index>
+    constexpr inline const typename GetType<index, ConstexprStaticTuple>::Type get() const {
+        if constexpr (index == 0)
+            return value;
+        else
+            return next.template get<index - 1>();
+    }
+};
+
+template <typename Current>
+struct ConstexprStaticTuple<Current> {
+    Current value;
+    using CurrentType = std::decay_t<Current>;
+
+    constexpr ConstexprStaticTuple(Current source) : value{source} {}
+
+    template <int index, typename = std::enable_if_t<index == 0>>
+    constexpr inline const CurrentType get() const {
+        return value;
+    }
+};
+
+template <>
+struct ConstexprStaticTuple<void> {};
+
 } // namespace JsonDeserialise
 
 #endif

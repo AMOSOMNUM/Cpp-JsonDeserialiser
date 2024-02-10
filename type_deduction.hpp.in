@@ -49,23 +49,27 @@ namespace @LIB_ID@_ {
         static constexpr bool value = true;
     };
 
-    template <typename TypeInRef,
-              typename Prototype = typename Deserialisable<std::decay_t<TypeInRef>>::Type>
+    template <typename TypeInRef, typename Prototype = typename Deserialisable<TypeInRef>::Type>
     using RefWrap = Prototype;
 
     template <typename Any>
     struct Deserialisable<Any&> {
-        using Type = RefWrap<std::decay_t<Any>>;
+        using Type = RefWrap<Any>;
     };
 
     template <typename Any>
     struct Deserialisable<Any&&> {
-        using Type = RefWrap<std::decay_t<Any>>;
+        using Type = RefWrap<Any>;
     };
 
     template <typename Any>
     struct Deserialisable<const Any&> {
-        using Type = RefWrap<std::decay_t<Any>>;
+        using Type = RefWrap<Any>;
+    };
+
+    template <typename Any>
+    struct Deserialisable<std::reference_wrapper<Any>> {
+        using Type = RefWrap<Any>;
     };
 
     template <typename Any>
@@ -153,38 +157,28 @@ namespace @LIB_ID@_ {
     };
 
     template <typename TypeInArray, std::size_t N>
-    struct Deserialisable<TypeInArray[N]> {
-        using Type = _DeserialisableType<TypeInArray[N], true, N, TypeInArray>;
-    };
+    struct Deserialisable<TypeInArray[N]>
+        : public LimitedArrayInfo<TypeInArray[N], TypeInArray, N> {};
 
     template <typename TypeInArray, std::size_t N>
-    struct Deserialisable<std::array<TypeInArray, N>> {
-        using Type = _DeserialisableType<std::array<TypeInArray, N>, true, N, TypeInArray>;
-    };
+    struct Deserialisable<std::array<TypeInArray, N>>
+        : public LimitedArrayInfo<std::array<TypeInArray, N>, TypeInArray, N> {};
 
     template <typename T, typename Alloc>
     struct Deserialisable<std::vector<T, Alloc>>
-        : public Impl::ArrayTypeInfo<std::vector<T, Alloc>, T> {
-        using Type = _DeserialisableType<std::vector<T, Alloc>, true, -1, T>;
-    };
+        : public ArrayTypeInfo<std::vector<T, Alloc>, T> {};
 
     template <typename T, typename Alloc>
     struct Deserialisable<std::list<T, Alloc>>
-        : public Impl::ArrayTypeInfo<std::list<T, Alloc>, T> {
-        using Type = _DeserialisableType<std::list<T, Alloc>, true, -1, T>;
-    };
+        : public ArrayTypeInfo<std::list<T, Alloc>, T> {};
 
     template <typename T, typename Comp, typename Alloc>
     struct Deserialisable<std::set<T, Comp, Alloc>>
-        : public Impl::ArrayTypeInfo<std::set<T, Comp, Alloc>, T> {
-        using Type = _DeserialisableType<std::set<T, Comp, Alloc>, true, -1, T>;
-    };
+        : public ArrayTypeInfo<std::set<T, Comp, Alloc>, T> {};
 
     template <typename Key, typename Value, typename Comp, typename Alloc>
     struct Deserialisable<std::map<Key, Value, Comp, Alloc>>
-        : public Impl::MapTypeInfo<std::map<Key, Value, Comp, Alloc>, Key, Value> {
-        using Type = Impl::Map<std::map<Key, Value, Comp, Alloc>, Key, Value>;
-    };
+        : public Impl::MapTypeInfo<std::map<Key, Value, Comp, Alloc>, Key, Value> {};
 
     template <typename First, typename Second>
     struct Deserialisable<std::pair<First, Second>> {

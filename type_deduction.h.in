@@ -1,30 +1,44 @@
 #ifndef JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_HEADER
 #define JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_HEADER
 
-#include <type_traits>
+#include <cstddef>
 
 inline namespace JsonDeserialise {
 
 namespace @LIB_ID@_ {
 
-    template <typename Any, bool isArray = false, int size = -1, typename TypeInArray = void,
-              int isNullable = -1, typename TypeInNullable = void, int isString = -1>
+    template <typename Any, bool isArray, int size, typename TypeInArray, int isNullable,
+              typename TypeInNullable, int isString>
     struct _Deserialisable;
 
     template <typename Any, bool isArray = false, int size = -1, typename TypeInArray = void,
               int isNullable = -1, typename TypeInNullable = void, int isString = -1>
     using _DeserialisableType =
-        typename _Deserialisable<std::decay_t<Any>, isArray, size, TypeInArray, isNullable,
-                                 TypeInNullable, isString>::Type;
+        typename _Deserialisable<Any, isArray, size, TypeInArray, isNullable, TypeInNullable,
+                                 isString>::Type;
 
     template <typename Any>
     struct Deserialisable {
-        using Type = _DeserialisableType<std::decay_t<Any>>;
+        using Type = _DeserialisableType<Any>;
     };
 
     template <typename T, const char* json_name, auto member_offset>
     struct Customised {
         using Type = typename Deserialisable<T>::Type;
+    };
+
+    template <typename Container, typename T, std::size_t limit>
+    struct LimitedArrayInfo {
+        using ArrayType = Container;
+        using TypeInArray = T;
+        using Type = _DeserialisableType<Container, true, limit, T>;
+    };
+
+    template <typename Container, typename T>
+    struct ArrayTypeInfo {
+        using ArrayType = Container;
+        using TypeInArray = T;
+        using Type = _DeserialisableType<Container, true, -1, T>;
     };
 
 } // namespace @LIB_ID@_

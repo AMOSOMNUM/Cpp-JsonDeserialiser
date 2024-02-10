@@ -121,7 +121,7 @@ struct Deserialiser {
     };
     template <typename T>
     struct NullableHandler<T, T*> {
-        inline static T* convert(const T& value) {
+        inline static T* convert(T value) {
             return new T(value);
         }
         constexpr inline static T* make_empty() {
@@ -235,8 +235,8 @@ struct Deserialiser {
             if constexpr (N == 1)
                 ((typename PackToType<Args...>::Type*)data[0])->assign(json);
             else {
-                int count = 0;
-                (deserialise_each<Args>(json, *data[count++]), ...);
+                auto ptr = data;
+                (deserialise_each<Args>(json, **ptr++), ...);
             }
         }
 
@@ -253,8 +253,8 @@ struct Deserialiser {
                 return ((typename PackToType<Args...>::Type*)data[0])->to_json();
             else {
                 typename Lib::JsonObject obj;
-                int count = 0;
-                ((insert_each<Args>(obj, *data[count++])), ...);
+                auto ptr = data;
+                ((insert_each<Args>(obj, **ptr++)), ...);
                 return obj;
             }
         }
@@ -891,17 +891,63 @@ struct Deserialiser {
     };
 
     template <typename T, typename KeyType, typename ValueType>
-    struct ObjectMap : public DeserialisableBase {
+    struct PairArrayMap : public DeserialisableBase {
+        using Target = T;
+        StringConst key[2];
+
+        PairArrayMap(Target& source, StringConstRef key_name, StringConstRef value_name)
+            : DeserialisableBase(&source, Trait::ARRAY), key{key_name, value_name} {}
+        PairArrayMap(StringConstRef name, Target& source, StringConstRef key_name,
+                     StringConstRef value_name)
+            : DeserialisableBase(&source, name), key{key_name, value_name} {}
+        PairArrayMap(const Target& source, StringConstRef key_name, StringConstRef value_name)
+            : DeserialisableBase(&source), key{key_name, value_name} {}
+        PairArrayMap(StringConstRef name, const Target& source, StringConstRef key_name,
+                     StringConstRef value_name)
+            : DeserialisableBase(&source, name), key{key_name, value_name} {}
+
+        void assign(const Json& json) {
+            if (!Lib::is_array(json) && !Lib::is_null(json))
+                throw std::ios_base::failure("Type Unmatch!");
+            for (const auto& i : Lib::get_array(json)) {
+                const auto& obj = Lib::get_object(i);
+                if (!Lib::exists(obj, key[0]) || !Lib::exists(obj, key[1]))
+                    throw std::ios_base::failure("Type Unmatch!");
+                KeyType key_field;
+                DeserialisableType<KeyType> key_deserialiser(key_field);
+                key_deserialiser.assign(obj[key[0]]);
+                ValueType value_obj;
+                DeserialisableType<ValueType> value_deserialiser(value_obj);
+                value_deserialiser.assign(obj[key[1]]);
+                this->template value<Target>()[key_field] = std::move(value_obj);
+            }
+        }
+        Json to_json() const {
+            typename Lib::JsonArray array;
+            for (const auto& [key_, value_] : this->template value<Target>()) {
+                typename Lib::JsonObject obj;
+                DeserialisableType<KeyType> key_deserialiser(key_);
+                obj.insert(key[0], key_deserialiser.to_json());
+                DeserialisableType<ValueType> value_deserialiser(value_);
+                obj.insert(key[1], value_deserialiser.to_json());
+                Lib::append(array, obj);
+            }
+            return array;
+        }
+    };
+
+    template <typename T, typename KeyType, typename ValueType>
+    struct ObjectArrayMap : public DeserialisableBase {
         using Target = T;
         StringConst key;
 
-        ObjectMap(Target& source, StringConstRef key_name)
+        ObjectArrayMap(Target& source, StringConstRef key_name)
             : DeserialisableBase(&source, Trait::ARRAY), key(key_name) {}
-        ObjectMap(StringConstRef name, Target& source, StringConstRef key_name)
+        ObjectArrayMap(StringConstRef name, Target& source, StringConstRef key_name)
             : DeserialisableBase(&source, name), key(key_name) {}
-        ObjectMap(const Target& source, StringConstRef key_name)
+        ObjectArrayMap(const Target& source, StringConstRef key_name)
             : DeserialisableBase(&source), key(key_name) {}
-        ObjectMap(StringConstRef name, const Target& source, StringConstRef key_name)
+        ObjectArrayMap(StringConstRef name, const Target& source, StringConstRef key_name)
             : DeserialisableBase(&source, name), key(key_name) {}
 
         void assign(const Json& json) {
@@ -934,16 +980,17 @@ struct Deserialiser {
     };
 
     template <typename T, typename KeyType, typename ValueType>
-    struct Map : public DeserialisableBase {
+    struct StringMap : public DeserialisableBase {
         using Target = T;
 
-        Map(Target& source) : DeserialisableBase(&source, Trait::ARRAY) {}
-        Map(StringConstRef name, Target& source, bool optional = false)
+        StringMap(Target& source) : DeserialisableBase(&source, Trait::ARRAY) {}
+        StringMap(StringConstRef name, Target& source, bool optional = false)
             : DeserialisableBase(&source, name, optional) {}
-        Map(const Target& source) : DeserialisableBase(&source) {}
-        Map(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
+        StringMap(const Target& source) : DeserialisableBase(&source) {}
+        StringMap(StringConstRef name, const Target& source) : DeserialisableBase(&source, name) {}
 
         void assign(const Json& json) {
+            static_assert(Lib::StringConvertor<KeyType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& [_key, _value] : Lib::get_object(json)) {
@@ -1003,8 +1050,8 @@ struct Deserialiser {
     };
 
     template <typename Des, typename ConvertFunctor,
-              typename BasicType = std::decay_t<typename ArgTypeDeduction<decltype(std::function(
-                  std::declval<ConvertFunctor>()))>::Type>>
+              typename BasicType = typename ArgTypeDeduction<decltype(std::function(
+                  std::declval<ConvertFunctor>()))>::Type>
     struct DeserialiseOnlyConvertor : decltype(std::function(std::declval<ConvertFunctor>())) {
         using Type = BasicType;
         using Target = std::decay_t<Des>;
@@ -1048,8 +1095,7 @@ struct Deserialiser {
         -> DeserialiseOnlyExtension<DeserialiseOnlyConvertor<Des, ConvertFunctor>>;
 
     template <typename Des, typename ConvertFunctor,
-              typename BasicType =
-                  std::decay_t<decltype(std::declval<ConvertFunctor>()(std::declval<Des>()))>>
+              typename BasicType = decltype(std::declval<ConvertFunctor>()(std::declval<Des>()))>
     struct SerialiseOnlyConvertor : decltype(std::function(std::declval<ConvertFunctor>())) {
         using Type = BasicType;
         using Target = std::decay_t<Des>;
@@ -1319,18 +1365,42 @@ struct Deserialiser {
         }
     };
 
-    template <typename Container, typename T>
-    struct ArrayTypeInfo {
-        using ArrayType = Container;
-        using TypeInArray = T;
+    enum class MapStyle {
+        STRING_MAP,
+        OBJECT_ARRAY,
+        PAIR_ARRAY,
     };
-
     template <typename Container, typename Key, typename Value>
     struct MapTypeInfo {
         using MapType = Container;
         using KeyType = Key;
         using ValueType = Value;
-        using _OBJECT_MAP_ = ObjectMap<Container, KeyType, ValueType>;
+        using _STRING_MAP_ = StringMap<Container, KeyType, ValueType>;
+        using _OBJECT_ARRAY_ = ObjectArrayMap<Container, KeyType, ValueType>;
+        using _PAIR_ARRAY_ = PairArrayMap<Container, KeyType, ValueType>;
+        using Type = _STRING_MAP_;
+
+        using EnumType = MapStyle;
+        template <EnumType style = EnumType::STRING_MAP>
+        struct Style;
+
+        template <>
+        struct Style<MapStyle::STRING_MAP> {
+            using Type = _STRING_MAP_;
+            static constexpr int argc = 0;
+        };
+
+        template <>
+        struct Style<MapStyle::OBJECT_ARRAY> {
+            using Type = _OBJECT_ARRAY_;
+            static constexpr int argc = 1;
+        };
+
+        template <>
+        struct Style<MapStyle::PAIR_ARRAY> {
+            using Type = _PAIR_ARRAY_;
+            static constexpr int argc = 2;
+        };
     };
 };
 
