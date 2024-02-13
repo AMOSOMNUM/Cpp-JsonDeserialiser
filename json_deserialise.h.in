@@ -1,1 +1,2 @@
-#include "types.@JSON_DESERIALISE_DEFAULT_JSON_LIBRARY_SUFFIX@.h"
+#include "macros.@lib@.h"
+#include "types.@lib@.h"

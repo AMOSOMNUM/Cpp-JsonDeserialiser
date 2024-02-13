@@ -6,7 +6,6 @@
 #include <optional>
 #include <variant>
 
-#include "json_deserialise.@JSON_DESERIALISE_DEFAULT_JSON_LIBRARY_SUFFIX@.h"
 #include "utilities.hpp"
 
 inline namespace JsonDeserialise {
@@ -18,7 +17,7 @@ enum class Trait : unsigned {
     OPTIONAL = 8,
 };
 
-enum class ArrayInsertWay : unsigned {
+enum class ArrayInsertWay : uint8_t {
     Unknown = 0,
     Emplace_Back = 1,
     Push_Back = 2,
@@ -28,72 +27,80 @@ enum class ArrayInsertWay : unsigned {
 
 template <typename T, typename Element>
 struct GetArrayInsertWay {
-    static constexpr ArrayInsertWay calculate() {
-        ArrayInsertWay result = ArrayInsertWay::Unknown;
-
-        if (is_emplaceback<T, Element>(nullptr))
-            result = ArrayInsertWay(unsigned(result) | unsigned(ArrayInsertWay::Emplace_Back));
-        if (is_pushback<T, Element>(nullptr))
-            result = ArrayInsertWay(unsigned(result) | unsigned(ArrayInsertWay::Push_Back));
-        if (is_append<T, Element>(nullptr))
-            result = ArrayInsertWay(unsigned(result) | unsigned(ArrayInsertWay::Append));
-        if (is_insert<T, Element>(nullptr))
-            result = ArrayInsertWay(unsigned(result) | unsigned(ArrayInsertWay::Insert));
-
-        return result;
-    }
-    template <typename U, typename V, typename = decltype(std::declval<U>().emplace_back())>
-    static constexpr bool is_emplaceback(int* p) {
+    template <typename = decltype(std::declval<T>().emplace_back())>
+    static constexpr bool is_emplaceback(int*) {
         return true;
     }
     template <typename...>
     static constexpr bool is_emplaceback(...) {
         return false;
     }
-    template <typename U, typename V,
-              typename = decltype(std::declval<U>().push_back(std::declval<V>()))>
-    static constexpr bool is_pushback(int* p) {
+    template <typename = decltype(std::declval<T>().push_back(std::declval<Element>()))>
+    static constexpr bool is_pushback(int*) {
         return true;
     }
     template <typename...>
     static constexpr bool is_pushback(...) {
         return false;
     }
-    template <typename U, typename V,
-              typename = decltype(std::declval<U>().append(std::declval<V>()))>
-    static constexpr bool is_append(int* p) {
+    template <typename = decltype(std::declval<T>().append(std::declval<Element>()))>
+    static constexpr bool is_append(int*) {
         return true;
     }
     template <typename...>
     static constexpr bool is_append(...) {
         return false;
     }
-    template <typename U, typename V,
-              typename = decltype(std::declval<U>().insert(std::declval<V>()))>
-    static constexpr bool is_insert(int* p) {
+    template <typename = decltype(std::declval<T>().insert(std::declval<Element>()))>
+    static constexpr bool is_insert(int*) {
         return true;
     }
     template <typename...>
     static constexpr bool is_insert(...) {
         return false;
     }
-    static constexpr ArrayInsertWay value = calculate();
-    static constexpr bool insert_only = value == ArrayInsertWay::Insert;
+    template <typename = decltype(std::declval<T>().reserve(std::declval<std::size_t>()))>
+    static constexpr bool is_reservable(int*) {
+        return true;
+    }
+    template <typename...>
+    static constexpr bool is_reservable(...) {
+        return false;
+    }
+
+    static constexpr uint8_t calculate() {
+        uint8_t result = uint8_t(ArrayInsertWay::Unknown);
+
+        if (is_emplaceback(nullptr))
+            result |= uint8_t(ArrayInsertWay::Emplace_Back);
+        if (is_pushback(nullptr))
+            result |= uint8_t(ArrayInsertWay::Push_Back);
+        if (is_append(nullptr))
+            result |= uint8_t(ArrayInsertWay::Append);
+        if (is_insert(nullptr))
+            result |= uint8_t(ArrayInsertWay::Insert);
+
+        return result;
+    }
+
+    static constexpr uint8_t value = calculate();
+    static constexpr bool insert_only = value == uint8_t(ArrayInsertWay::Insert);
 
     inline static Element& push_back(T& container) {
-        if constexpr (unsigned(value) & unsigned(ArrayInsertWay::Emplace_Back))
+        static_assert(value && !insert_only);
+        if constexpr (is_emplaceback(nullptr))
             return container.emplace_back();
         else {
-            if constexpr (unsigned(value) & unsigned(ArrayInsertWay::Push_Back))
+            if constexpr (is_pushback(nullptr))
                 container.push_back(Element());
-            else if constexpr (unsigned(value) & unsigned(ArrayInsertWay::Append))
+            else if constexpr (is_append(nullptr))
                 container.append(Element());
             return container.back();
         }
     }
 };
 
-template <typename Lib = @JSON_DESERIALISE_DEFAULT_JSON_LIBRARY@Adaptation>
+template <typename Lib>
 struct Deserialiser {
     template <typename Any>
     using DeserialisableType = typename Lib::template DeserialisableType<Any>;
@@ -472,22 +479,23 @@ struct Deserialiser {
         StringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
         void assign(const Json& json) {
-            static_assert(bool(GetArrayInsertWay<T, StringType>::value));
+            static_assert(GetArrayInsertWay<T, StringType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : Lib::get_array(json)) {
+            const auto& array = Lib::get_array(json);
+            this->template value<Target>().clear();
+            if constexpr (GetArrayInsertWay<T, StringType>::is_reservable())
+                this->template value<Target>().reserve(array.size());
+            for (const auto& i : array) {
                 if (!Lib::is_string(i) && !Lib::is_null(i))
                     throw std::ios_base::failure("Type Unmatch!");
-                if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                              unsigned(ArrayInsertWay::Push_Back))
+                if constexpr (GetArrayInsertWay<T, StringType>::is_pushback(nullptr))
                     this->template value<Target>().push_back(
                         StringConvertor<StringType>::convert(Lib::get_string(i)));
-                else if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                   unsigned(ArrayInsertWay::Append))
+                else if constexpr (GetArrayInsertWay<T, StringType>::is_append(nullptr))
                     this->template value<Target>().append(
                         StringConvertor<StringType>::convert(Lib::get_string(i)));
-                else if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                   unsigned(ArrayInsertWay::Insert))
+                else
                     this->template value<Target>().insert(
                         StringConvertor<StringType>::convert(Lib::get_string(i)));
             }
@@ -511,34 +519,32 @@ struct Deserialiser {
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : Lib::get_array(json))
+            const auto& array = Lib::get_array(json);
+            this->template value<Target>().clear();
+            if constexpr (GetArrayInsertWay<T, StringType>::is_reservable())
+                this->template value<Target>().reserve(array.size());
+            for (const auto& i : array)
                 if (Lib::is_string(i)) {
-                    if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                  unsigned(ArrayInsertWay::Push_Back))
+                    if constexpr (GetArrayInsertWay<T, StringType>::is_pushback(nullptr))
                         this->template value<Target>().push_back(
                             NullableHandler<NullableStringType, StringType>::convert(
                                 StringConvertor<StringType>::convert(Lib::get_string(i))));
-                    else if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                       unsigned(ArrayInsertWay::Append))
+                    else if constexpr (GetArrayInsertWay<T, StringType>::is_append(nullptr))
                         this->template value<Target>().append(
                             NullableHandler<NullableStringType, StringType>::convert(
                                 StringConvertor<StringType>::convert(Lib::get_string(i))));
-                    else if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                       unsigned(ArrayInsertWay::Insert))
+                    else
                         this->template value<Target>().insert(
                             NullableHandler<NullableStringType, StringType>::convert(
                                 StringConvertor<StringType>::convert(Lib::get_string(i))));
                 } else if (Lib::is_null(i)) {
-                    if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                  unsigned(ArrayInsertWay::Push_Back))
+                    if constexpr (GetArrayInsertWay<T, StringType>::is_pushback(nullptr))
                         this->template value<Target>().push_back(
                             NullableHandler<NullableStringType, StringType>::make_empty());
-                    else if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                       unsigned(ArrayInsertWay::Append))
+                    else if constexpr (GetArrayInsertWay<T, StringType>::is_append(nullptr))
                         this->template value<Target>().append(
                             NullableHandler<NullableStringType, StringType>::make_empty());
-                    else if constexpr (unsigned(GetArrayInsertWay<T, StringType>::value) &
-                                       unsigned(ArrayInsertWay::Insert))
+                    else
                         this->template value<Target>().insert(
                             NullableHandler<NullableStringType, StringType>::make_empty());
                 } else
@@ -623,10 +629,14 @@ struct Deserialiser {
         StringConst identifiers[sizeof...(Members)];
 
         void assign(const Json& json) {
-            static_assert(bool(GetArrayInsertWay<T, ObjectType>::value));
+            static_assert(GetArrayInsertWay<T, ObjectType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : Lib::get_array(json)) {
+            const auto& array = Lib::get_array(json);
+            this->template value<Target>().clear();
+            if constexpr (GetArrayInsertWay<T, ObjectType>::is_reservable())
+                this->template value<Target>().reserve(array.size());
+            for (const auto& i : array) {
                 if (!Lib::is_object(i))
                     throw std::ios_base::failure("Type Unmatch!");
                 StringConst* ptr = identifiers;
@@ -673,10 +683,14 @@ struct Deserialiser {
         using Prototype = DeserialisableType<TypeInArray>;
 
         void assign(const Json& json) {
-            static_assert(bool(GetArrayInsertWay<T, TypeInArray>::value));
+            static_assert(GetArrayInsertWay<T, TypeInArray>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            for (const auto& i : Lib::get_array(json)) {
+            const auto& array = Lib::get_array(json);
+            this->template value<Target>().clear();
+            if constexpr (GetArrayInsertWay<T, TypeInArray>::is_reservable())
+                this->template value<Target>().reserve(array.size());
+            for (const auto& i : array) {
                 if constexpr (!GetArrayInsertWay<T, TypeInArray>::insert_only) {
                     Prototype deserialiser(GetArrayInsertWay<T, TypeInArray>::push_back(
                         this->template value<Target>()));
@@ -699,6 +713,47 @@ struct Deserialiser {
         }
     };
 
+    template <typename T, typename KeyType, typename ValueType>
+    struct Array<T, std::pair<KeyType, ValueType>> : public DeserialisableBaseHelper<T> {
+        using Base = DeserialisableBaseHelper<T>;
+        using Target = T;
+        using TypeInArray = std::pair<KeyType, ValueType>;
+
+        template <typename... Args>
+        Array(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+        void assign(const Json& json) {
+            static_assert(StringConvertor<KeyType>::value &&
+                          GetArrayInsertWay<T, TypeInArray>::value);
+            if (!Lib::is_array(json) && !Lib::is_null(json))
+                throw std::ios_base::failure("Type Unmatch!");
+            const auto& obj = Lib::get_object(json);
+            this->template value<Target>().clear();
+            for (const auto& [_key, _value] : obj) {
+                KeyType key;
+                ValueType value_;
+                DeserialisableType<KeyType> key_deserialiser(key);
+                DeserialisableType<ValueType> value_deserialiser(value_);
+                key_deserialiser.assign(_key);
+                value_deserialiser.assign(_value);
+                if constexpr (GetArrayInsertWay<T, TypeInArray>::is_emplace_back())
+                    this->template value<Target>().emplace_back(key, value_);
+                else
+                    this->template value<Target>().emplace(key, value_);
+            }
+        }
+        Json to_json() const {
+            typename Lib::JsonObject obj;
+            for (const auto& [key, value] : this->template value<Target>()) {
+                DeserialisableType<KeyType> key_deserialiser(key);
+                DeserialisableType<ValueType> value_deserialiser(value);
+                obj.insert(Lib::get_string(key_deserialiser.to_json()),
+                           value_deserialiser.to_json());
+            }
+            return obj;
+        }
+    };
+
     template <typename T, typename TypeInArray, std::size_t N>
     struct LimitedArray : public Array<T, TypeInArray> {
         using Base = Array<T, TypeInArray>;
@@ -711,29 +766,12 @@ struct Deserialiser {
         void assign(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            if constexpr (bool(GetArrayInsertWay<T, TypeInArray>::value))
-                for (const auto& i : Lib::get_array(json)) {
-                    if (this->template value<Target>().size() == N)
-                        throw std::ios_base::failure("Array Out of Range!");
-                    if constexpr (!GetArrayInsertWay<T, TypeInArray>::insert_only) {
-                        Prototype deserialiser(GetArrayInsertWay<T, TypeInArray>::push_back(
-                            this->template value<Target>()));
-                        deserialiser.assign(i);
-                    } else {
-                        TypeInArray tmp;
-                        Prototype deserialiser(tmp);
-                        deserialiser.assign(i);
-                        this->template value<Target>().insert(std::move(tmp));
-                    }
-                }
-            else {
-                int count = 0;
-                for (const auto& i : Lib::get_array(json)) {
-                    if (count == N)
-                        throw std::ios_base::failure("Array Out of Range!");
-                    Prototype deserialiser(this->template value<Target>()[count++]);
-                    deserialiser.assign(i);
-                }
+            int count = 0;
+            for (const auto& i : Lib::get_array(json)) {
+                if (count == N)
+                    throw std::ios_base::failure("Array Out of Range!");
+                Prototype deserialiser(this->template value<Target>()[count++]);
+                deserialiser.assign(i);
             }
         }
     };
@@ -996,7 +1034,8 @@ struct Deserialiser {
             for (const auto& [key, value] : this->template value<Target>()) {
                 DeserialisableType<KeyType> key_deserialiser(key);
                 DeserialisableType<ValueType> value_deserialiser(value);
-                obj.insert(Lib::get_string(key_deserialiser.to_json()), value_deserialiser.to_json());
+                obj.insert(Lib::get_string(key_deserialiser.to_json()),
+                           value_deserialiser.to_json());
             }
             return obj;
         }
@@ -1057,8 +1096,8 @@ struct Deserialiser {
         DeserialiseOnlyExtension(T&& convertor, Target& source)
             : DeserialisableBase(&source), convertor(std::forward<T>(convertor)) {}
         template <typename T, typename String>
-        DeserialiseOnlyExtension(T&& convertor, String&& name, Target& source)
-            : DeserialisableBase(&source, std::forward<String>(name)),
+        DeserialiseOnlyExtension(T&& convertor, String&& name, Target& source, bool optional = false)
+            : DeserialisableBase(&source, std::forward<String>(name), optional),
               convertor(std::forward<T>(convertor)) {}
 
         const std::decay_t<Convertor> convertor;
@@ -1113,7 +1152,7 @@ struct Deserialiser {
     SerialiseOnlyExtension(ConvertFunctor&&, const Des&)
         -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
     template <typename Des, typename ConvertFunctor, typename String>
-    SerialiseOnlyExtension(ConvertFunctor&&, String&&, const Des&, bool)
+    SerialiseOnlyExtension(ConvertFunctor&&, String&&, const Des&)
         -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
 
     template <typename Des, typename ConvertFunctor = Des(const Json&),
@@ -1211,7 +1250,7 @@ struct Deserialiser {
     };
 
     template <int N, typename Target, typename Given>
-    inline Convertor<Target> ConvertorGenerator(Given& given) {
+    inline static Convertor<Target> ConvertorGenerator(Given& given) {
         if constexpr (N == -1)
             return std::move(Convertor<Target>());
         else
@@ -1278,12 +1317,12 @@ struct Deserialiser {
         template <int N>
         void assign_if_eq(int index, const typename Lib::JsonObject& obj) {
             if (N == index)
-                this->template value<Target>().emplace<N>(convertors.get<N>().convertor(obj));
+                this->template value<Target>().emplace<N>(convertors.template get<N>().convertor(obj));
         }
         template <int N>
         void serialise_if_eq(int index, Json& json) {
             if (N == index)
-                json = convertors.get<N>().deconvertor(json);
+                json = convertors.template get<N>().deconvertor(json);
         }
 
         void assign(const Json& json) {
@@ -1307,14 +1346,16 @@ struct Deserialiser {
         const std::function<void(T&)> functor;
 
         template <typename Functor>
-        EndoExtension(Functor&& f, T& source) : Prototype(source), functor(f) {}
+        EndoExtension(Functor&& f, T& source)
+            : Prototype(source), functor(std::forward<Functor>(f)) {}
         template <typename Functor, typename String>
         EndoExtension(Functor&& f, String&& name, T& source, bool optional = false)
-            : Prototype(std::forward<String>(name), source, optional), functor(f) {}
+            : Prototype(std::forward<String>(name), source, optional),
+              functor(std::forward<Functor>(f)) {}
 
-        void assign(const Json& json) {
+        inline void assign(const Json& json) {
             Prototype::assign(json);
-            functor(Prototype::value);
+            functor(this->template value<T>());
         }
     };
 

@@ -1,6 +1,7 @@
-#ifndef JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_
-#define JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_
+#ifndef JSON_DESERIALISER_@LIB_ID@_TYPE_BASIC_
+#define JSON_DESERIALISER_@LIB_ID@_TYPE_BASIC_
 
+#include "adaptor.@lib@.h"
 #include "json_deserialise.hpp"
 #include "type_deduction.@lib@.h"
 
@@ -216,4 +217,4 @@ namespace @LIB_ID@_ {
 
 } // namespace JsonDeserialise
 
-#endif // JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_
+#endif // JSON_DESERIALISER_@LIB_ID@_TYPE_BASIC_

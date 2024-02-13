@@ -1,7 +1,6 @@
 #ifndef JSON_DESERIALISER_QT_H
 #define JSON_DESERIALISER_QT_H
 
-#include "macros.qt.h"
 #include "type_deduction.qt.h"
 
 #include <QFile>
