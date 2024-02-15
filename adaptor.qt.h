@@ -14,14 +14,16 @@
 inline namespace JsonDeserialise {
 struct QtAdaptation {
 
+    // Essential alias
+
     template <typename Any>
     using Deserialisable = QtAdaptation_::Deserialisable<Any>;
 
     template <typename Any>
     using DeserialisableType = typename Deserialisable<Any>::Type;
 
-    template <typename T, const char* json_name, auto member_offset>
-    using Customised = QtAdaptation_::Customised<T, json_name, member_offset>;
+    template <auto member_offset>
+    using Customised = QtAdaptation_::Customised<member_offset>;
 
     // Basic Types
 

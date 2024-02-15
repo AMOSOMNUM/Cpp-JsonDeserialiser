@@ -5,11 +5,20 @@
 #define set_object_alias(object_type, alias)                                                       \
     inline namespace JsonDeserialise {                                                             \
     using alias = ::object_type;                                                                   \
-    };
+    }
+#if __cplusplus >= 202002L
 #define register_object_member(object_type, json_name, member_name)                                \
-    inline namespace JsonDeserialise {                                                             \
-    constexpr char object_type##_##member_name[] = json_name;                                      \
+    template <>                                                                                    \
+    struct JsonKeyName<&object_type::member_name> {                                                \
+        static constexpr char8_t value[] = json_name;                                              \
     };
+#else
+#define register_object_member(object_type, json_name, member_name)                                \
+    template <>                                                                                    \
+    struct JsonKeyName<&object_type::member_name> {                                                \
+        static constexpr char value[] = json_name;                                                 \
+    };
+#endif
 
 #endif // JSON_DESERIALISER_GLOBAL_MACROS
 
@@ -115,14 +124,6 @@
         using Type = target_type##_Extension;                                                      \
     };                                                                                             \
     }
-#define @lib@_declare_endofunctor_extension(name, type, functor)                                   \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
-    struct name##_Extension : public Deserialiser<@LIB_ID@>::EndoExtension<type> {                 \
-        using Base = EndoExtension<type>;                                                          \
-        template <typename... Args>                                                                \
-        name##_##EndoFunctor_(Args&&... args) : Base(functor, std::forward<Args>(args)...) {}      \
-    };                                                                                             \
-    }
 
 #define @lib@_register_object_member_with_style(object_type, json_name, member_name, style, ...)   \
     register_object_member(object_type, json_name, member_name);                                   \
@@ -130,7 +131,7 @@
     using object_type##_##member_name##_Style_Type =                                               \
         typename Deserialisable<decltype(((object_type*)nullptr)->member_name)>::Style<            \
             Deserialiser<@LIB_ID@>::MapStyle::style>;                                              \
-    static constexpr ConstexprStaticTuple object_type##_##member_name##_Style_Args{__VA_ARGS__};   \
+    static constexpr ConstexprTuple object_type##_##member_name##_Style_Args{__VA_ARGS__};         \
     template <typename inc>                                                                        \
     struct object_type##_##member_name##_Style;                                                    \
     template <int... pack>                                                                         \
@@ -143,8 +144,7 @@
                    std::forward<Args>(args)...) {}                                                 \
     };                                                                                             \
     template <>                                                                                    \
-    struct Customised<decltype(((object_type*)nullptr)->member_name), object_type##_##member_name, \
-                      &object_type::member_name> {                                                 \
+    struct Customised<&object_type::member_name> {                                                 \
         static constexpr int argc = object_type##_##member_name##_Style_Type::argc;                \
         using Type = object_type##_##member_name##_Style<typename ConstexprIncArray<argc>::Type>;  \
     };                                                                                             \
@@ -155,8 +155,7 @@
     @lib@_declare_extension(object_type##_##member_name, target_type, convertor, deconvertor);     \
     namespace JsonDeserialise::@LIB_ID@_ {                                                         \
     template <>                                                                                    \
-    struct Customised<decltype(((object_type*)nullptr)->member_name), object_type##_##member_name, \
-                      &object_type::member_name> {                                                 \
+    struct Customised<&object_type::member_name> {                                                 \
         using Type = object_type##_##member_name##_##_Extension;                                   \
     };                                                                                             \
     }
@@ -174,8 +173,7 @@
             : Base(convertor, std::forward<Args>(args)...) {}                                      \
     };                                                                                             \
     template <>                                                                                    \
-    struct Customised<decltype(((object_type*)nullptr)->member_name), object_type##_##member_name, \
-                      &object_type::member_name> {                                                 \
+    struct Customised<&object_type::member_name> {                                                 \
         using Type = object_type##_##member_name##_Deserialise_Only;                               \
     };                                                                                             \
     }
@@ -193,43 +191,20 @@
             : Base(deconvertor, std::forward<Args>(args)...) {}                                    \
     };                                                                                             \
     template <>                                                                                    \
-    struct Customised<decltype(((object_type*)nullptr)->member_name), object_type##_##member_name, \
-                      &object_type::member_name> {                                                 \
+    struct Customised<&object_type::member_name> {                                                 \
         using Type = object_type##_##member_name##_Serialise_Only;                                 \
     };                                                                                             \
     }
-#define @lib@_register_object_member_with_endofunctor(object_type, json_name, member_name,         \
-                                                      functor)                                     \
-    register_object_member(object_type, json_name, member_name);                                   \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
-    using object_type##_##member_name##_##EndoFunctor_Base =                                       \
-        typename Impl::EndoFunctor<decltype(((object_type*)nullptr)->member_name)>;                \
-    struct object_type##_##member_name##_##EndoFunctor                                             \
-        : public object_type##_##member_name##_##EndoFunctor_Base {                                \
-        using Base = object_type##_##member_name##_##EndoFunctor_Base;                             \
-        template <typename... Args>                                                                \
-        object_type##_##member_name##_##EndoFunctor(Args&&... args)                                \
-            : Base(functor, std::forward<Args>(args)...) {}                                        \
-    };                                                                                             \
-    template <>                                                                                    \
-    struct Customised<decltype(((object_type*)nullptr)->member_name),                              \
-                      JsonDeserialise::object_type##_##member_name, &object_type::member_name> {   \
-        using Type = object_type##_##member_name##_##EndoFunctor;                                  \
-    };                                                                                             \
-    }
-#define @lib@_object_member_without_default(object_type, member_name, ...)                         \
-    Deserialiser<@LIB_ID@>::ReinforcedInfo<decltype(((object_type*)nullptr)->member_name),         \
-                                           object_type##_##member_name,                            \
-                                           sizeof(JsonDeserialise::object_type##_##member_name),   \
-                                           &object_type::member_name, __VA_ARGS__>
+#define @lib@_object_member_va_arg(object_type, member_name, ...)                                  \
+    Deserialiser<@LIB_ID@>::ObjectMember<&object_type::member_name, __VA_ARGS__>
 #define @lib@_object_member(object_type, member_name)                                              \
-    @lib@_object_member_without_default(object_type, member_name)
+    @lib@_object_member_va_arg(object_type, member_name)
 #define @lib@_optional_object_member(object_type, member_name)                                     \
-    @lib@_object_member_without_default(object_type, member_name, true)
+    @lib@_object_member_va_arg(object_type, member_name, true)
 #define @lib@_object_member_with_extension(object_type, member_name, extension)                    \
-    @lib@_object_member_without_default(object_type, member_name, functor, false, extension)
+    @lib@_object_member_va_arg(object_type, member_name, false, extension)
 #define @lib@_optional_object_member_with_extension(object_type, member_name, extension)           \
-    @lib@_object_member_without_default(object_type, member_name, functor, true, extension)
+    @lib@_object_member_va_arg(object_type, member_name, true, extension)
 
 #cmakedefine JSON_DESERIALISER_DEFAULT_MODE
 #ifdef JSON_DESERIALISER_DEFAULT_MODE
@@ -298,8 +273,6 @@
                                                              deconvertor)                          \
     @lib@_register_object_member_with_serialise_only_extension(object_type, json_name,             \
                                                                member_name, deconvertor)
-#define register_object_member_with_endofunctor(object_type, json_name, member_name, functor)      \
-    @lib@_register_object_member_with_endofunctor(object_type, json_name, member_name, functor)
 #define object_member(object_type, member_name) @lib@_object_member(object_type, member_name)
 #define optional_object_member(object_type, member_name)                                           \
     @lib@_optional_object_member(object_type, member_name)

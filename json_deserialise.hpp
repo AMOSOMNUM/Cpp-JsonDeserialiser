@@ -100,13 +100,16 @@ struct GetArrayInsertWay {
     }
 };
 
+template <auto member_ptr>
+struct JsonKeyName;
+
 template <typename Lib>
 struct Deserialiser {
     template <typename Any>
     using DeserialisableType = typename Lib::template DeserialisableType<Any>;
 
-    template <typename T, const char* json_name, auto member_offset>
-    using Customised = typename Lib::template Customised<T, json_name, member_offset>;
+    template <auto member_ptr>
+    using Customised = typename Lib::template Customised<member_ptr>;
 
     using StringRvalueRef = typename Lib::String&&;
     using StringConstRef = const typename Lib::String&;
@@ -821,14 +824,12 @@ struct Deserialiser {
             : Base(std::move(name), reinterpret_cast<const As&>(source)) {}
     };
 
-    template <typename T, const char* json_name, size_t json_name_length, auto member_offset,
-              bool optional_member = false,
-              typename Custom = typename Customised<T, json_name, member_offset>::Type>
-    struct ReinforcedInfo {
-        using Type = T;
-        using Prototype = Custom;
-        static constexpr const char* name = json_name;
-        static constexpr size_t name_length = json_name_length;
+    template <auto member_offset, bool optional_member = false, typename Custom = void>
+    struct ObjectMember {
+        using Prototype = std::conditional_t<std::is_same_v<Custom, void>,
+                                             typename Customised<member_offset>::Type, Custom>;
+        using Type = typename Prototype::Target;
+        static constexpr auto& name = JsonKeyName<member_offset>::value;
         static constexpr auto member_ptr = member_offset;
         static constexpr bool optional = optional_member;
     };
@@ -1283,24 +1284,6 @@ struct Deserialiser {
             Json result;
             int index = this->template value<Target>().index();
             (serialise_if_eq<pack>(index, result), ...);
-        }
-    };
-
-    template <typename T, typename Prototype = DeserialisableType<T>>
-    struct EndoExtension : public Prototype {
-        const std::function<void(T&)> functor;
-
-        template <typename Functor>
-        EndoExtension(Functor&& f, T& source)
-            : Prototype(source), functor(std::forward<Functor>(f)) {}
-        template <typename Functor, typename String>
-        EndoExtension(Functor&& f, String&& name, T& source, bool optional = false)
-            : Prototype(std::forward<String>(name), source, optional),
-              functor(std::forward<Functor>(f)) {}
-
-        inline void assign(const Json& json) {
-            Prototype::assign(json);
-            functor(this->template value<T>());
         }
     };
 

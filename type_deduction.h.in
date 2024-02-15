@@ -22,8 +22,11 @@ namespace @LIB_ID@_ {
         using Type = _DeserialisableType<Any>;
     };
 
-    template <typename T, const char* json_name, auto member_offset>
-    struct Customised {
+    template <auto member_offset, typename = decltype(member_offset)>
+    struct Customised;
+    
+    template <typename ObjectType, typename T, auto member_offset>
+    struct Customised<member_offset, T ObjectType::*> {
         using Type = typename Deserialisable<T>::Type;
     };
 
