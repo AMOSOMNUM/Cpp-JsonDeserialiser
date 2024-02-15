@@ -28,13 +28,14 @@ You just need to set includepath in cmake and include autogen file "json_deseria
 |LimitedArray|T[N]、std::array\<T, N>|
 |Map|std::map\<KeyType, ValueType>|
 |Pair|std::pair\<KeyType, ValueType>|
+|PairArray|array of std::pair<StringType, ValueType>|
 |AsTrivial|Treated same as an Existing Type<br>e.g. enum as integer|
 |DerivedObject|Support single inheritance|
 |SelfDeserialise|A Class with json constructor and to_json method|
 |Extension|An Existing Type to and from Any<br>e.g. enum to string<br>One-direction is also supported|
-|EndoFunctor|A special Extension used for further actions right after deserialisation|
+|Variant<br>(Preview)|std::variant|
 |Optional|An Optional Field|
-|VerientObject<br>(Experimental)|[finished]std::variant<br>[TODO]support downcast|
+|ProcessControl<br>(Developing)|Actions such as Lock, Self-Examination, Log e.t.c. before or after a desrialisation/serialisation.|
 |||
 
 ## Simple Usage
@@ -94,7 +95,7 @@ std::cout << deserialiser.serialise(); // And two other methods.
 #### Try to Globally Register It
 
 If you want to enable global refelction.  
-You should do this in global namespace since our reflection informations are all staticly placed in an inline namespace called JsonDeserialise.
+You should do this in global namespace since our reflection informations are all staticly placed in a namespace called JsonDeserialise.
 
 ```c++
 // Class Sample Definition Here
