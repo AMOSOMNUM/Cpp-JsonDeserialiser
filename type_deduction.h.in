@@ -3,9 +3,7 @@
 
 #include <cstddef>
 
-inline namespace JsonDeserialise {
-
-namespace @LIB_ID@_ {
+namespace JsonDeserialise::@LIB_ID@_ {
 
     template <typename Any, bool isArray, int size, typename TypeInArray, int isNullable,
               typename TypeInNullable, int isString>
@@ -44,8 +42,6 @@ namespace @LIB_ID@_ {
         using Type = _DeserialisableType<Container, true, -1, T>;
     };
 
-} // namespace @LIB_ID@_
-
-} // namespace JsonDeserialise
+} // namespace JsonDeserialise::@LIB_ID@_
 
 #endif // JSON_DESERIALISER_@LIB_ID@_TYPE_DEDUCTION_HEADER

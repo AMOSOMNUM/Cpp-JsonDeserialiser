@@ -8,7 +8,7 @@
 
 #include "utilities.hpp"
 
-inline namespace JsonDeserialise {
+namespace JsonDeserialise {
 enum class Trait : unsigned {
     NUL = 0,
     OBJECT = 1,
@@ -288,6 +288,10 @@ struct Deserialiser {
             : DeserialisableBase(&source, name) {}
         DeserialisableBaseHelper(StringRvalueRef name, const T& source)
             : DeserialisableBase(&source, std::move(name)) {}
+
+        DeserialisableBaseHelper(T&& source) = delete;
+        DeserialisableBaseHelper(StringConstRef name, T&& source, bool optional) = delete;
+        DeserialisableBaseHelper(StringRvalueRef name, T&& source, bool optional) = delete;
     };
 
     struct Boolean : public DeserialisableBaseHelper<bool> {
@@ -487,7 +491,7 @@ struct Deserialiser {
                 throw std::ios_base::failure("Type Unmatch!");
             const auto& array = Lib::get_array(json);
             this->template value<Target>().clear();
-            if constexpr (GetArrayInsertWay<T, StringType>::is_reservable())
+            if constexpr (GetArrayInsertWay<T, StringType>::is_reservable(nullptr))
                 this->template value<Target>().reserve(array.size());
             for (const auto& i : array) {
                 if (!Lib::is_string(i) && !Lib::is_null(i))
@@ -524,7 +528,7 @@ struct Deserialiser {
                 throw std::ios_base::failure("Type Unmatch!");
             const auto& array = Lib::get_array(json);
             this->template value<Target>().clear();
-            if constexpr (GetArrayInsertWay<T, StringType>::is_reservable())
+            if constexpr (GetArrayInsertWay<T, StringType>::is_reservable(nullptr))
                 this->template value<Target>().reserve(array.size());
             for (const auto& i : array)
                 if (Lib::is_string(i)) {
@@ -615,21 +619,58 @@ struct Deserialiser {
         }
     };
 
-    template <typename T, auto member_offset>
-    struct ObjectArrayInfo : public Lib::String {
-        using Prototype = DeserialisableType<decltype(((T*)nullptr)->member_offset)>;
+    template <auto member_ptr, typename = decltype(member_ptr)>
+    struct ObjectArrayInfo;
+
+    template <typename T, typename ObjectType, auto member_offset>
+    struct ObjectArrayInfo<member_offset, T ObjectType::*> : public Lib::String {
+        using Prototype = DeserialisableType<T>;
+        using Type = T;
+        static constexpr auto member_ptr = member_offset;
+
+        template <typename U>
+        ObjectArrayInfo(U&& arg) : Lib::String(std::forward<U>(arg)) {}
     };
 
-    template <typename T, auto... Members>
-    struct ObjectArray : public DeserialisableBaseHelper<T> {
-        using Base = DeserialisableBaseHelper<T>;
+    template <auto member_ptr, typename T>
+    struct Coercion {
+        using Type = ObjectArrayInfo<member_ptr>;
+    };
+
+    template <auto member_ptr>
+    struct Coercion<member_ptr, const typename Lib::String&> {
+        using Type = const ObjectArrayInfo<member_ptr>&;
+    };
+
+    template <auto member_ptr>
+    struct Coercion<member_ptr, typename Lib::String&> {
+        using Type = ObjectArrayInfo<member_ptr>&;
+    };
+
+    template <auto member_ptr>
+    struct Coercion<member_ptr, typename Lib::String&&> {
+        using Type = ObjectArrayInfo<member_ptr>&&;
+    };
+
+    template <typename T, typename... MemberInfo>
+    struct ObjectArray : public DeserialisableBase {
         using Target = T;
-
-        template <typename... Args>
-        ObjectArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
-
         using ObjectType = typename Lib::template Deserialisable<Target>::TypeInArray;
-        StringConst identifiers[sizeof...(Members)];
+
+        ObjectArray(Target& source, MemberInfo&&... args)
+            : DeserialisableBase(&source), identifiers{std::forward<MemberInfo>(args)...} {}
+        template <typename String>
+        ObjectArray(String&& name, Target& source, bool optional, MemberInfo&&... args)
+            : DeserialisableBase(&source, std::forward<String>(name), optional),
+              identifiers{std::forward<MemberInfo>(args)...} {}
+        ObjectArray(const Target& source, MemberInfo&&... args)
+            : DeserialisableBase(&source), identifiers{std::forward<MemberInfo>(args)...} {}
+        template <typename String>
+        ObjectArray(String&& name, const Target& source, bool optional, MemberInfo&&... args)
+            : DeserialisableBase(&source, std::forward<String>(name), optional),
+              identifiers{std::forward<MemberInfo>(args)...} {}
+
+        StringConst identifiers[sizeof...(MemberInfo)];
 
         void assign(const Json& json) {
             static_assert(GetArrayInsertWay<T, ObjectType>::value);
@@ -637,7 +678,7 @@ struct Deserialiser {
                 throw std::ios_base::failure("Type Unmatch!");
             const auto& array = Lib::get_array(json);
             this->template value<Target>().clear();
-            if constexpr (GetArrayInsertWay<T, ObjectType>::is_reservable())
+            if constexpr (GetArrayInsertWay<T, ObjectType>::is_reservable(nullptr))
                 this->template value<Target>().reserve(array.size());
             for (const auto& i : array) {
                 if (!Lib::is_object(i))
@@ -646,17 +687,17 @@ struct Deserialiser {
                 if constexpr (!GetArrayInsertWay<T, ObjectType>::insert_only) {
                     ObjectType& obj =
                         GetArrayInsertWay<T, ObjectType>::push_back(this->template value<Target>());
-                    (deserialise_each<typename ObjectArrayInfo<ObjectType, Members>::Prototype>(
+                    (deserialise_each<typename std::decay_t<MemberInfo>::Prototype>(
                          Lib::get_object(i),
-                         typename ObjectArrayInfo<ObjectType, Members>::Prototype(*ptr++,
-                                                                                  obj.*Members)),
+                         typename std::decay_t<MemberInfo>::Prototype(
+                             *ptr++, obj.*std::decay_t<MemberInfo>::member_ptr)),
                      ...);
                 } else {
                     ObjectType obj;
-                    (deserialise_each<typename ObjectArrayInfo<ObjectType, Members>::Prototype>(
+                    (deserialise_each<typename std::decay_t<MemberInfo>::Prototype>(
                          Lib::get_object(i),
-                         typename ObjectArrayInfo<ObjectType, Members>::Prototype(*ptr++,
-                                                                                  obj.*Members)),
+                         typename std::decay_t<MemberInfo>::Prototype(
+                             *ptr++, obj.*std::decay_t<MemberInfo>::member_ptr)),
                      ...);
                     this->template value<Target>().insert(std::move(obj));
                 }
@@ -666,9 +707,9 @@ struct Deserialiser {
             typename Lib::JsonArray array;
             for (const auto& i : this->template value<Target>()) {
                 StringConst* ptr = identifiers;
-                (append_each<typename ObjectArrayInfo<ObjectType, Members>::Prototype>(
-                     array,
-                     typename ObjectArrayInfo<ObjectType, Members>::Prototype(*ptr++, i.*Members)),
+                (append_each<typename std::decay_t<MemberInfo>::Prototype>(
+                     array, typename std::decay_t<MemberInfo>::Prototype(
+                                *ptr++, i.*std::decay_t<MemberInfo>::member_ptr)),
                  ...);
             }
             return array;
@@ -691,7 +732,7 @@ struct Deserialiser {
                 throw std::ios_base::failure("Type Unmatch!");
             const auto& array = Lib::get_array(json);
             this->template value<Target>().clear();
-            if constexpr (GetArrayInsertWay<T, TypeInArray>::is_reservable())
+            if constexpr (GetArrayInsertWay<T, TypeInArray>::is_reservable(nullptr))
                 this->template value<Target>().reserve(array.size());
             for (const auto& i : array) {
                 if constexpr (!GetArrayInsertWay<T, TypeInArray>::insert_only) {
@@ -709,7 +750,7 @@ struct Deserialiser {
         Json to_json() const {
             typename Lib::JsonArray array;
             for (const auto& i : this->template value<Target>()) {
-                Prototype serialiser(i);
+                const Prototype serialiser(i);
                 Lib::append(array, serialiser.to_json());
             }
             return array;
@@ -748,8 +789,8 @@ struct Deserialiser {
         Json to_json() const {
             typename Lib::JsonObject obj;
             for (const auto& [key, value] : this->template value<Target>()) {
-                DeserialisableType<KeyType> key_deserialiser(key);
-                DeserialisableType<ValueType> value_deserialiser(value);
+                const DeserialisableType<KeyType> key_deserialiser(key);
+                const DeserialisableType<ValueType> value_deserialiser(value);
                 obj.insert(Lib::get_string(key_deserialiser.to_json()),
                            value_deserialiser.to_json());
             }
@@ -853,7 +894,7 @@ struct Deserialiser {
         }
         Json to_json() const {
             typename Lib::JsonObject obj;
-            (insert_each<const typename MemberInfo::Prototype>(
+            (insert_each<typename MemberInfo::Prototype>(
                  obj,
                  typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*
                                                                       MemberInfo::member_ptr)),
@@ -884,7 +925,7 @@ struct Deserialiser {
 
         Json to_json() const {
             auto obj = Lib::get_object(Base::to_json());
-            (insert_each<const typename MemberInfo::Prototype>(
+            (insert_each<typename MemberInfo::Prototype>(
                  obj,
                  typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*
                                                                       MemberInfo::member_ptr)),
@@ -919,15 +960,6 @@ struct Deserialiser {
         template <typename String1, typename String2, typename... Args>
         PairArrayMap(String1&& key_name, String2&& value_name, Args&&... args)
             : Base(std::forward<Args>(args)...),
-              key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
-        template <typename String1, typename String2>
-        PairArrayMap(T& source, String1&& key_name, String2&& value_name)
-            : Base(source),
-              key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
-        template <typename String, typename String1, typename String2>
-        PairArrayMap(String&& name, T& source, String1&& key_name, String2&& value_name,
-                     bool optional = false)
-            : Base(std::forward<String>(name), source, optional),
               key{std::forward<String1>(key_name), std::forward<String2>(value_name)} {}
 
         StringConst key[2];
@@ -970,13 +1002,6 @@ struct Deserialiser {
         template <typename String, typename... Args>
         ObjectArrayMap(String&& key_name, Args&&... args)
             : Base(std::forward<Args>(args)...), key{std::forward<String>(key_name)} {}
-        template <typename String>
-        ObjectArrayMap(T& source, String&& key_name)
-            : Base(source), key{std::forward<String>(key_name)} {}
-        template <typename String1, typename String2>
-        ObjectArrayMap(String1&& name, T& source, String2&& key_name, bool optional = false)
-            : Base(std::forward<String1>(name), source, optional),
-              key{std::forward<String2>(key_name)} {}
 
         StringConst key;
 
@@ -1078,7 +1103,8 @@ struct Deserialiser {
     template <typename Des, typename ConvertFunctor,
               typename BasicType = typename ArgTypeDeduction<decltype(std::function(
                   std::declval<ConvertFunctor>()))>::Type>
-    struct DeserialiseOnlyConvertor : decltype(std::function(std::declval<ConvertFunctor>())) {
+    struct DeserialiseOnlyConvertor
+        : public decltype(std::function(std::declval<ConvertFunctor>())) {
         using Type = BasicType;
         using Target = std::decay_t<Des>;
         using Source = std::decay_t<BasicType>;
@@ -1120,7 +1146,7 @@ struct Deserialiser {
 
     template <typename Des, typename ConvertFunctor,
               typename BasicType = decltype(std::declval<ConvertFunctor>()(std::declval<Des>()))>
-    struct SerialiseOnlyConvertor : decltype(std::function(std::declval<ConvertFunctor>())) {
+    struct SerialiseOnlyConvertor : public decltype(std::function(std::declval<ConvertFunctor>())) {
         using Type = BasicType;
         using Target = std::decay_t<Des>;
         using Source = std::decay_t<BasicType>;

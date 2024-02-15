@@ -10,9 +10,7 @@
 #include <set>
 #include <vector>
 
-inline namespace JsonDeserialise {
-
-namespace @LIB_ID@_ {
+namespace JsonDeserialise::@LIB_ID@_ {
 
     using Impl = Deserialiser<@LIB_ID@>;
 
@@ -55,11 +53,6 @@ namespace @LIB_ID@_ {
 
     template <typename Any>
     struct Deserialisable<Any&> {
-        using Type = RefWrap<Any>;
-    };
-
-    template <typename Any>
-    struct Deserialisable<Any&&> {
         using Type = RefWrap<Any>;
     };
 
@@ -166,12 +159,11 @@ namespace @LIB_ID@_ {
         : public LimitedArrayInfo<std::array<TypeInArray, N>, TypeInArray, N> {};
 
     template <typename T, typename Alloc>
-    struct Deserialisable<std::vector<T, Alloc>>
-        : public ArrayTypeInfo<std::vector<T, Alloc>, T> {};
+    struct Deserialisable<std::vector<T, Alloc>> : public ArrayTypeInfo<std::vector<T, Alloc>, T> {
+    };
 
     template <typename T, typename Alloc>
-    struct Deserialisable<std::list<T, Alloc>>
-        : public ArrayTypeInfo<std::list<T, Alloc>, T> {};
+    struct Deserialisable<std::list<T, Alloc>> : public ArrayTypeInfo<std::list<T, Alloc>, T> {};
 
     template <typename T, typename Comp, typename Alloc>
     struct Deserialisable<std::set<T, Comp, Alloc>>
@@ -213,8 +205,20 @@ namespace @LIB_ID@_ {
         using Type = Impl::String<char[length]>;
     };
 
-} // namespace @LIB_ID@_
+    // Global Extension
 
-} // namespace JsonDeserialise
+    template <typename T>
+    struct DefinedExtension;
+
+    template <typename T>
+    struct DefinedExtensionBase;
+
+    template <auto member_ptr>
+    struct RegisteredExtension;
+
+    template <auto member_ptr>
+    struct RegisteredExtensionBase;
+
+} // namespace JsonDeserialise::@LIB_ID@_
 
 #endif // JSON_DESERIALISER_@LIB_ID@_TYPE_BASIC_

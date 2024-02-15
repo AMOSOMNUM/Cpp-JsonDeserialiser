@@ -5,9 +5,7 @@
 
 #include "basic_types.qt.hpp"
 
-inline namespace JsonDeserialise {
-
-namespace QtAdaptation_ {
+namespace JsonDeserialise::QtAdaptation_ {
 
     template <>
     struct Deserialisable<QtAdaptation::Json> {
@@ -24,8 +22,6 @@ namespace QtAdaptation_ {
     template <typename T>
     struct Deserialisable<QSet<T>> : public ArrayTypeInfo<QSet<T>, T> {};
 
-} // namespace QtAdaptation_
-
-} // namespace JsonDeserialise
+} // namespace JsonDeserialise::QtAdaptation_
 
 #endif

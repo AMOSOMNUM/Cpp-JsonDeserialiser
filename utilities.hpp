@@ -3,7 +3,7 @@
 
 #include <type_traits>
 
-inline namespace JsonDeserialise {
+namespace JsonDeserialise {
 
 // unwrap a pack that has only one type
 template <typename TypeTupleFront, typename...>

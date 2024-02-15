@@ -11,7 +11,7 @@
 #include <QString>
 #include <cstring>
 
-inline namespace JsonDeserialise {
+namespace JsonDeserialise {
 struct QtAdaptation {
 
     // Essential alias
