@@ -4,7 +4,7 @@ Serialise and Deserialise json from various types and data structures, performin
 Currently only support Qt Json Library and will support nlohmann soon.
 
 Headers only!  
-You just need to set includepath in cmake and include autogen file "json_deserialise.h".
+So You just need to add subdirectory and setup include path in cmake and include the autogen file "json_deserialise.h".
 
 ## Basic Types
 
@@ -23,7 +23,7 @@ You just need to set includepath in cmake and include autogen file "json_deseria
 |Trait|Type in C++|
 |:-|:-|
 |Nullable|T*、std::optional\<T>|
-|Ref|T&、const T&、T&&|
+|Ref|T&、const T&|
 |Array|std::vector\<T>、std::set\<T>、std::list\<T>、QList\<T>、QSet\<T> e.t.c.|
 |LimitedArray|T[N]、std::array\<T, N>|
 |Map|std::map\<KeyType, ValueType>|
@@ -33,8 +33,8 @@ You just need to set includepath in cmake and include autogen file "json_deseria
 |DerivedObject|Support single inheritance|
 |SelfDeserialise|A Class with json constructor and to_json method|
 |Extension|An Existing Type to and from Any<br>e.g. enum to string<br>One-direction is also supported|
-|Variant<br>(Preview)|std::variant|
 |Optional|An Optional Field|
+|Variant<br>(Preview)|std::variant|
 |ProcessControl<br>(Developing)|Actions such as Lock, Self-Examination, Log e.t.c. before or after a desrialisation/serialisation.|
 |||
 
@@ -99,11 +99,9 @@ You should do this in global namespace since our reflection informations are all
 
 ```c++
 // Class Sample Definition Here
-register_object_member(Sample, "A", a);
-register_object_member(Sample, "B", b);
 declare_object(Sample,
-    object_member(Sample, a),
-    object_member(Sample, b)
+    object_member("A", a),
+    object_member("B", b)
 );
 
 // Somewhere
@@ -155,7 +153,7 @@ struct XXX {
     Type enum_field;
 };
 
-declare_object(XXX, object_member(XXX, enum_field)
+declare_object(XXX, object_member("key", enum_field)
 //Other fields...
 );
 ```

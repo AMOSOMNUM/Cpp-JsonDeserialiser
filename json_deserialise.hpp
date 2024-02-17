@@ -100,8 +100,11 @@ struct GetArrayInsertWay {
     }
 };
 
-template <auto member_ptr>
-struct JsonKeyName;
+enum MapStyle {
+    STRING_MAP,
+    OBJECT_ARRAY,
+    PAIR_ARRAY,
+};
 
 template <typename Lib>
 struct Deserialiser {
@@ -288,10 +291,6 @@ struct Deserialiser {
             : DeserialisableBase(&source, name) {}
         DeserialisableBaseHelper(StringRvalueRef name, const T& source)
             : DeserialisableBase(&source, std::move(name)) {}
-
-        DeserialisableBaseHelper(T&& source) = delete;
-        DeserialisableBaseHelper(StringConstRef name, T&& source, bool optional) = delete;
-        DeserialisableBaseHelper(StringRvalueRef name, T&& source, bool optional) = delete;
     };
 
     struct Boolean : public DeserialisableBaseHelper<bool> {
@@ -619,14 +618,11 @@ struct Deserialiser {
         }
     };
 
-    template <auto member_ptr, typename = decltype(member_ptr)>
-    struct ObjectArrayInfo;
-
-    template <typename T, typename ObjectType, auto member_offset>
-    struct ObjectArrayInfo<member_offset, T ObjectType::*> : public Lib::String {
-        using Prototype = DeserialisableType<T>;
-        using Type = T;
+    template <auto member_offset>
+    struct ObjectArrayInfo : public Lib::String {
         static constexpr auto member_ptr = member_offset;
+        using Type = typename MemberPtrToType<member_ptr>::Type;
+        using Prototype = DeserialisableType<Type>;
 
         template <typename U>
         ObjectArrayInfo(U&& arg) : Lib::String(std::forward<U>(arg)) {}
@@ -865,12 +861,13 @@ struct Deserialiser {
             : Base(std::move(name), reinterpret_cast<const As&>(source)) {}
     };
 
-    template <auto member_offset, bool optional_member = false, typename Custom = void>
+    template <typename JsonKeyName, auto member_offset, bool optional_member = false,
+              typename Custom = void>
     struct ObjectMember {
         using Prototype = std::conditional_t<std::is_same_v<Custom, void>,
                                              typename Customised<member_offset>::Type, Custom>;
         using Type = typename Prototype::Target;
-        static constexpr auto& name = JsonKeyName<member_offset>::value;
+        static constexpr auto& name = JsonKeyName::value;
         static constexpr auto member_ptr = member_offset;
         static constexpr bool optional = optional_member;
     };
@@ -1328,11 +1325,6 @@ struct Deserialiser {
         }
     };
 
-    enum class MapStyle {
-        STRING_MAP,
-        OBJECT_ARRAY,
-        PAIR_ARRAY,
-    };
     template <typename Container, typename Key, typename Value>
     struct MapTypeInfo {
         using MapType = Container;
@@ -1343,8 +1335,7 @@ struct Deserialiser {
         using _PAIR_ARRAY_ = PairArrayMap<Container, KeyType, ValueType>;
         using Type = _STRING_MAP_;
 
-        using EnumType = MapStyle;
-        template <EnumType style = EnumType::STRING_MAP>
+        template <MapStyle style>
         struct Style;
 
         template <>

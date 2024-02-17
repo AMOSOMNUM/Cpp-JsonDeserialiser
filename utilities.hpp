@@ -14,6 +14,14 @@ struct PackToType<TypeTupleFront> {
     using Type = TypeTupleFront;
 };
 
+template <auto member_ptr, typename = decltype(member_ptr)>
+struct MemberPtrToType;
+
+template <typename T, typename ObjectType, auto member_ptr>
+struct MemberPtrToType<member_ptr, T ObjectType::*> {
+    using Type = T;
+};
+
 template <typename Function>
 struct ArgTypeDeduction {
     using Type = typename ArgTypeDeduction<decltype(&Function::operator())>::Type;

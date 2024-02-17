@@ -205,7 +205,10 @@ namespace JsonDeserialise::@LIB_ID@_ {
         using Type = Impl::String<char[length]>;
     };
 
-    // Global Extension
+    // Reflection Informations
+
+    template <typename T>
+    struct DefinedObject;
 
     template <typename T>
     struct DefinedExtension;
@@ -214,10 +217,21 @@ namespace JsonDeserialise::@LIB_ID@_ {
     struct DefinedExtensionBase;
 
     template <auto member_ptr>
+    struct RegisteredJsonKey;
+
+    template <auto member_ptr>
     struct RegisteredExtension;
 
     template <auto member_ptr>
     struct RegisteredExtensionBase;
+
+    template <auto member_ptr>
+    struct RegisteredStyleInfo;
+
+    template <auto member_ptr,
+              typename Inc =
+                  typename ConstexprIncArray<RegisteredStyleInfo<member_ptr>::argc>::Type>
+    struct RegisteredStyle;
 
 } // namespace JsonDeserialise::@LIB_ID@_
 

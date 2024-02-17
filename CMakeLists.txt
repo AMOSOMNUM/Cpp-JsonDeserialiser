@@ -5,6 +5,12 @@ if (NOT CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 17)
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(Boost)
+if(NOT Boost_FOUND)
+    message(WARNING "Can't find Boot Library, please add boost_preprocesser/include in the current dir ${CMAKE_CURRENT_LIST_DIR} to your include_path.")
+endif()
+include_directories(${CMAKE_CURRENT_LIST_DIR}/boost_preprocesser/include)
+
 message("Currently only Qt supported.")
 option(JSON_DESERIALISE_DEFAULT_JSON_LIBRARY "" OFF)
 option(JSON_DESERIALISE_JSON_LIBRARIES "" OFF)
