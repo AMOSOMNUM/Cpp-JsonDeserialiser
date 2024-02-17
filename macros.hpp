@@ -7,7 +7,9 @@
 #define JSON_DESERIALISER_DEFAULT_BYTE_TYPE char8_t
 #else
 #define JSON_DESERIALISER_DEFAULT_BYTE_TYPE char
-#endif 
+#endif
+#define JSON_DESERIALISER_MACRO_WRAP_0(x) x
+#define JSON_DESERIALISER_MACRO_WRAP_1(x) x
 
 #define register_object_member_info_extension_(base, member_ptr, ...)                              \
     template <>                                                                                    \
@@ -28,7 +30,7 @@
 #define register_object_member_info_map_style(member_ptr, style, ...)                              \
     template <>                                                                                    \
     struct RegisteredStyleInfo<member_ptr>                                                         \
-        : public Deserialisable<typename MemberPtrToType<member_ptr>::Type>::Style<style> {};      \
+        : public Deserialisable<typename MemberPtrToType<member_ptr>::Type>::Style<(style)> {};    \
     template <int... pack>                                                                         \
     struct RegisteredStyle<member_ptr, ConstexprArrayPack<pack...>>                                \
         : public RegisteredStyleInfo<member_ptr>::Type {                                           \
@@ -51,7 +53,7 @@
     register_object_member_info_extension_(SerialiseOnlyExtension, member_ptr, functor)
 
 #define register_object_member_info_expand_body(x0, x1, x2, x3, x4, ...)                           \
-    register_object_member_info_##x0(x2, ##__VA_ARGS__);                                           \
+    JSON_DESERIALISER_MACRO_WRAP_1(register_object_member_info_##x0(x2, ##__VA_ARGS__););          \
     template <>                                                                                    \
     struct RegisteredJsonKey<x2> {                                                                 \
         static constexpr JSON_DESERIALISER_DEFAULT_BYTE_TYPE value[] = x1;                         \
@@ -59,9 +61,10 @@
 #define object_member_info_expand_body(x0, x1, x2, x3, x4, ...)                                    \
     Impl::ObjectMember<RegisteredJsonKey<x2>, x2, x3, x4>
 #define register_object_member_info_expand(z, n, tuple)                                            \
-    register_object_member_info_expand_body BOOST_PP_TUPLE_ELEM(n, tuple)
+    JSON_DESERIALISER_MACRO_WRAP_0(                                                                \
+        register_object_member_info_expand_body BOOST_PP_TUPLE_ELEM(n, tuple))
 #define object_member_info_expand(z, n, tuple)                                                     \
-    object_member_info_expand_body BOOST_PP_TUPLE_ELEM(n, tuple)
+    JSON_DESERIALISER_MACRO_WRAP_0(object_member_info_expand_body BOOST_PP_TUPLE_ELEM(n, tuple))
 #define register_object_member_info(tuple)                                                         \
     BOOST_PP_REPEAT(BOOST_PP_TUPLE_SIZE(tuple), register_object_member_info_expand, tuple)
 #define object_member_info(tuple)                                                                  \
