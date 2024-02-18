@@ -12,18 +12,18 @@
 #include <cstring>
 
 namespace JsonDeserialise {
-struct QtAdaptation {
+struct QtJsonLib {
 
     // Essential alias
 
     template <typename Any>
-    using Deserialisable = QtAdaptation_::Deserialisable<Any>;
+    using Deserialisable = QtJsonLibPrivate::Deserialisable<Any>;
 
     template <typename Any>
     using DeserialisableType = typename Deserialisable<Any>::Type;
 
     template <auto member_offset>
-    using Customised = QtAdaptation_::Customised<member_offset>;
+    using Customised = QtJsonLibPrivate::Customised<member_offset>;
 
     // Basic Types
 

@@ -10,9 +10,9 @@
 #include <set>
 #include <vector>
 
-namespace JsonDeserialise::@LIB_ID@_ {
+namespace JsonDeserialise::@LIB_ID@Private {
 
-    using Impl = Deserialiser<@LIB_ID@>;
+    using Impl = Implementation<@LIB_ID@>;
 
     template <typename T>
     using StringConvertor = typename @LIB_ID@::template StringConvertor<T>;
@@ -233,6 +233,6 @@ namespace JsonDeserialise::@LIB_ID@_ {
                   typename ConstexprIncArray<RegisteredStyleInfo<member_ptr>::argc>::Type>
     struct RegisteredStyle;
 
-} // namespace JsonDeserialise::@LIB_ID@_
+} // namespace JsonDeserialise::@LIB_ID@Private
 
 #endif // JSON_DESERIALISER_@LIB_ID@_TYPE_BASIC_

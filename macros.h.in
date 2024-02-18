@@ -1,83 +1,81 @@
-#ifndef JSON_DESERIALISER_@LIB_ID@_MACROS
-#define JSON_DESERIALISER_@LIB_ID@_MACROS
+#ifndef JSON_DESERIALISER_@LIB_ID@PrivateMACROS
+#define JSON_DESERIALISER_@LIB_ID@PrivateMACROS
 
 #include "macros.hpp"
 
 // Local
 
 #define @lib@_declare_top_deserialiser(data_name, var_name)                                        \
-    JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Type var_name(data_name);
+    JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(data_name);
 #define @lib@_declare_deserialiser(json_name, data_name, var_name)                                 \
-    JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Type var_name(json_name,      \
+    JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(json_name,\
                                                                                    data_name);
 #define @lib@_declare_top_serialiser(data_name, var_name)                                          \
-    const JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Type var_name(          \
+    const JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(    \
         std::as_const(data_name));
 #define @lib@_declare_serialiser(json_name, data_name, var_name)                                   \
-    const JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Type var_name(          \
+    const JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(    \
         json_name, std::as_const(data_name));
 #define @lib@_declare_named_extension_deserialiser(json_name, data_name, var_name, convertor,      \
                                                    deconvertor)                                    \
-    JsonDeserialise::@LIB_ID@_::Impl::Extension var_name((convertor), (deconvertor), json_name,    \
-                                                         data_name);
+    JsonDeserialise::@LIB_ID@Private::Impl::Extension var_name(convertor, deconvertor, json_name,  \
+                                                               data_name);
 #define @lib@_declare_one_way_extension_deserialiser(json_name, data_name, var_name, convertor)    \
-    JsonDeserialise::@LIB_ID@_::Impl::DeserialiseOnlyExtension var_name((convertor), json_name,    \
-                                                                        data_name);
+    JsonDeserialise::@LIB_ID@Private::Impl::DeserialiseOnlyExtension var_name(convertor, json_name,\
+                                                                              data_name);
 #define @lib@_declare_one_way_extension_serialiser(json_name, data_name, var_name, deconvertor)    \
-    JsonDeserialise::@LIB_ID@_::Impl::SerialiseOnlyExtension var_name((deconvertor), json_name,    \
-                                                                      std::as_const(data_name));
+    JsonDeserialise::@LIB_ID@Private::Impl::SerialiseOnlyExtension var_name(deconvertor, json_name,\
+                                                                            std::as_const(data_name));
 #define @lib@_declare_top_map_deserialiser(data_name, var_name, style, ...)                        \
-    typename JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Style<               \
-        JsonDeserialise::@LIB_ID@_::Impl::MapStyle::style>                                         \
+    typename JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Style<         \
+        JsonDeserialise::@LIB_ID@Private::Impl::MapStyle::style>                                   \
         var_name(data_name, ##__VA_ARGS__);
 #define @lib@_declare_map_deserialiser(json_name, data_name, var_name, style, ...)                 \
-    typename JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Style<               \
-        JsonDeserialise::@LIB_ID@_::Impl::MapStyle::style>                                         \
+    typename JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Style<         \
+        JsonDeserialise::@LIB_ID@Private::Impl::MapStyle::style>                                   \
         var_name(json_name, data_name, ##__VA_ARGS__);
 #define @lib@_declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)           \
-    JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Type var_name(                \
+    JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(          \
         json_name1, json_name2, data_name);
 #define @lib@_declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)    \
-    JsonDeserialise::@LIB_ID@_::Deserialisable<decltype(data_name)>::Type var_name(                \
+    JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(          \
         json_name1, json_name2, json_name, data_name);
 // Fields should be more than one
 #define @lib@_declare_top_object_deserialiser(var_name, field1, ...)                               \
-    JsonDeserialise::@LIB_ID@_::Impl::JsonDeserialiser var_name(field1, __VA_ARGS__);
+    JsonDeserialise::@LIB_ID@Private::Impl::JsonDeserialiser var_name(field1, __VA_ARGS__);
 #define @lib@_declare_top_array_of_object_deserialiser(data_name, var_name, ...)                   \
-    JsonDeserialise::@LIB_ID@_::Impl::ObjectArray var_name(data_name, __VA_ARGS__);
+    JsonDeserialise::@LIB_ID@Private::Impl::ObjectArray var_name(data_name, __VA_ARGS__);
 #define @lib@_declare_array_of_object_deserialiser(json_name, data_name, var_name, ...)            \
-    JsonDeserialise::@LIB_ID@_::Impl::ObjectArray var_name(json_name, data_name, __VA_ARGS__);
+    JsonDeserialise::@LIB_ID@Private::Impl::ObjectArray var_name(json_name, data_name, __VA_ARGS__);
 #define @lib@_array_field(object_type, json_name, member_name)                                     \
-    static_cast<typename JsonDeserialise::@LIB_ID@_::Impl::Coercion<&object_type::member_name,     \
-                                                                    decltype(json_name)>::Type>(   \
-        json_name)
+static_cast<typename JsonDeserialise::@LIB_ID@Private::Impl::Coercion<&object_type::member_name, decltype(json_name)>::Type>(json_name)
 
 // Global
 #define @lib@_declare_object(object_type, ...)                                                     \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                   \
     declare_object_body(object_type, declare_object_process(object_type, __VA_ARGS__));            \
     }
 #define @lib@_declare_object_with_base_class(object_type, base_type, ...)                          \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                   \
     declare_object_with_base_class_body(object_type, base_type,                                    \
                                         declare_object_process(object_type, __VA_ARGS__));         \
     }
 #define @lib@_declare_class_with_json_constructor_and_serialiser(object_type)                      \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                   \
     template <>                                                                                    \
     struct Deserialisable<object_type> {                                                           \
         using Type = Impl::SelfDeserialisableObject<object_type>;                                  \
     };                                                                                             \
     }
 #define @lib@_declare_as_trivial(type_name, as)                                                    \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                   \
     template <>                                                                                    \
     struct Deserialisable<type_name> {                                                             \
         using Type = Impl::AsTrivial<type_name, as>;                                               \
     };                                                                                             \
     }
 #define @lib@_declare_named_extension(name, target_type, convertor, deconvertor)                   \
-    namespace JsonDeserialise::@LIB_ID@_::Extension {                                              \
+    namespace JsonDeserialise::@LIB_ID@Private::Extension {                                              \
     namespace ExtensionBase {                                                                      \
         using name = decltype(Impl::Extension(convertor, deconvertor, *(target_type*)nullptr));    \
     }                                                                                              \
@@ -88,7 +86,7 @@
     };                                                                                             \
     }
 #define @lib@_declare_default_extension(target_type, convertor, deconvertor)                       \
-    namespace JsonDeserialise::@LIB_ID@_ {                                                         \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                         \
     template <>                                                                                    \
     struct DefinedExtensionBase<target_type> {                                                     \
         using Type = decltype(Impl::Extension(convertor, deconvertor, *(target_type*)nullptr));    \
@@ -133,9 +131,6 @@
     @lib@_declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)
 #define declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)          \
     @lib@_declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)
-// Fields should be more than one
-#define declare_top_object_deserialiser(var_name, field1, ...)                                     \
-    @lib@_declare_top_object_deserialiser(var_name, field1, __VA_ARGS__)
 #define declare_top_array_of_object_deserialiser(data_name, var_name, object_type, ...)            \
     @lib@_declare_top_array_of_object_deserialiser(data_name, var_name, object_type, __VA_ARGS__)
 #define declare_array_of_object_deserialiser(json_name, data_name, var_name, object_type, ...)     \
@@ -159,4 +154,4 @@
 
 #endif // JSON_DESERIALISER_DEFAULT_MODE
 
-#endif // JSON_DESERIALISER_@LIB_ID@_MACROS
+#endif // JSON_DESERIALISER_@LIB_ID@PrivateMACROS

@@ -1,2 +1,3 @@
 #include "macros.@lib@.h"
 #include "types.@lib@.h"
+#include "decorator.@lib@.h"

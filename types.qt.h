@@ -5,11 +5,11 @@
 
 #include "basic_types.qt.hpp"
 
-namespace JsonDeserialise::QtAdaptation_ {
+namespace JsonDeserialise::QtJsonLibPrivate {
 
     template <>
-    struct Deserialisable<QtAdaptation::Json> {
-        using Type = typename Deserialiser<QtAdaptation>::JSONWrap;
+    struct Deserialisable<QtJsonLib::Json> {
+        using Type = typename Implementation<QtJsonLib>::JSONWrap;
     };
 
     template <typename T>
@@ -22,6 +22,6 @@ namespace JsonDeserialise::QtAdaptation_ {
     template <typename T>
     struct Deserialisable<QSet<T>> : public ArrayTypeInfo<QSet<T>, T> {};
 
-} // namespace JsonDeserialise::QtAdaptation_
+} // namespace JsonDeserialise::QtJsonLibPrivate
 
 #endif

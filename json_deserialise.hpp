@@ -107,7 +107,7 @@ enum MapStyle {
 };
 
 template <typename Lib>
-struct Deserialiser {
+struct Implementation {
     template <typename Any>
     using DeserialisableType = typename Lib::template DeserialisableType<Any>;
 
@@ -216,7 +216,7 @@ struct Deserialiser {
         if (!(contain || (unsigned(each.info.flag) & unsigned(Trait::OPTIONAL))))
             throw std::ios_base::failure("JSON Structure Incompatible!");
         if (contain)
-            static_cast<T&>(each).assign(object[each.identifier]);
+            static_cast<T&>(each).from_json(object[each.identifier]);
     }
 
     template <typename T>
@@ -252,19 +252,11 @@ struct Deserialiser {
 
         void deserialise(const Json& json) {
             if constexpr (N == 1)
-                ((typename PackToType<Args...>::Type*)data[0])->assign(json);
+                ((typename PackToType<Args...>::Type*)data[0])->from_json(json);
             else {
                 auto ptr = data;
                 (deserialise_each<Args>(json, **ptr++), ...);
             }
-        }
-
-        inline void deserialise(const typename Lib::JsonObject& object) {
-            deserialise(static_cast<const Json&>(object));
-        }
-
-        inline std::enable_if_t<N == 1> deserialise(const typename Lib::JsonArray& array) {
-            deserialise(static_cast<const Json&>(array));
         }
 
         Json serialise_to_json() const {
@@ -300,7 +292,7 @@ struct Deserialiser {
         template <typename... Args>
         Boolean(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (Lib::is_bool(json))
                 this->template value<Target>() = Lib::get_bool(json);
             else if (Lib::is_string(json)) {
@@ -343,7 +335,7 @@ struct Deserialiser {
         template <typename... Args>
         Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (Lib::is_number(json))
                 this->template value<Target>() = Lib::get_int(json);
             else if (Lib::is_string(json))
@@ -366,7 +358,7 @@ struct Deserialiser {
         template <typename... Args>
         Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (Lib::is_number(json))
                 this->template value<Target>() = Lib::get_uint(json);
             else if (Lib::is_string(json))
@@ -392,7 +384,7 @@ struct Deserialiser {
         template <typename... Args>
         Real(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (Lib::is_number(json))
                 this->template value<Target>() = Lib::get_double(json);
             else if (Lib::is_string(json))
@@ -413,7 +405,7 @@ struct Deserialiser {
         template <typename... Args>
         String(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_string(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             this->template value<Target>() =
@@ -441,7 +433,7 @@ struct Deserialiser {
                                                      : DeserialisableBase::info.const_ptr);
         }
 
-        inline void assign(const Json& json) {
+        inline void from_json(const Json& json) {
             if (!Lib::is_string(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             Lib::template char_array_write<length>(value(), Lib::get_string(json));
@@ -459,7 +451,7 @@ struct Deserialiser {
         template <typename... Args>
         NullableString(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_string(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             if (!Lib::is_null(json))
@@ -484,7 +476,7 @@ struct Deserialiser {
         template <typename... Args>
         StringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             static_assert(GetArrayInsertWay<T, StringType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
@@ -522,7 +514,7 @@ struct Deserialiser {
         template <typename... Args>
         NullableStringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             const auto& array = Lib::get_array(json);
@@ -576,7 +568,7 @@ struct Deserialiser {
         template <typename... Args>
         LimitedStringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             int count = 0;
@@ -600,7 +592,7 @@ struct Deserialiser {
         template <typename... Args>
         LimitedNullableStringArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             int count = 0;
@@ -668,7 +660,7 @@ struct Deserialiser {
 
         StringConst identifiers[sizeof...(MemberInfo)];
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             static_assert(GetArrayInsertWay<T, ObjectType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
@@ -722,7 +714,7 @@ struct Deserialiser {
 
         using Prototype = DeserialisableType<TypeInArray>;
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             static_assert(GetArrayInsertWay<T, TypeInArray>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
@@ -734,11 +726,11 @@ struct Deserialiser {
                 if constexpr (!GetArrayInsertWay<T, TypeInArray>::insert_only) {
                     Prototype deserialiser(GetArrayInsertWay<T, TypeInArray>::push_back(
                         this->template value<Target>()));
-                    deserialiser.assign(i);
+                    deserialiser.from_json(i);
                 } else {
                     TypeInArray tmp;
                     Prototype deserialiser(tmp);
-                    deserialiser.assign(i);
+                    deserialiser.from_json(i);
                     this->template value<Target>().insert(std::move(tmp));
                 }
             }
@@ -762,7 +754,7 @@ struct Deserialiser {
         template <typename... Args>
         Array(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             static_assert(StringConvertor<KeyType>::value &&
                           GetArrayInsertWay<T, TypeInArray>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
@@ -774,8 +766,8 @@ struct Deserialiser {
                 ValueType value_;
                 DeserialisableType<KeyType> key_deserialiser(key);
                 DeserialisableType<ValueType> value_deserialiser(value_);
-                key_deserialiser.assign(_key);
-                value_deserialiser.assign(_value);
+                key_deserialiser.from_json(_key);
+                value_deserialiser.from_json(_value);
                 if constexpr (GetArrayInsertWay<T, TypeInArray>::is_emplace_back())
                     this->template value<Target>().emplace_back(key, value_);
                 else
@@ -803,7 +795,7 @@ struct Deserialiser {
         template <typename... Args>
         LimitedArray(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             int count = 0;
@@ -811,7 +803,7 @@ struct Deserialiser {
                 if (count == N)
                     throw std::ios_base::failure("Array Out of Range!");
                 Prototype deserialiser(this->template value<Target>()[count++]);
-                deserialiser.assign(i);
+                deserialiser.from_json(i);
             }
         }
     };
@@ -824,7 +816,7 @@ struct Deserialiser {
         template <typename... Args>
         Nullable(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (Lib::is_null(json)) {
                 this->template value<Target>() =
                     NullableHandler<TypeInNullable, Target>::make_empty();
@@ -832,7 +824,7 @@ struct Deserialiser {
             }
             TypeInNullable tmp;
             DeserialisableType<TypeInNullable> deserialiser(tmp);
-            deserialiser.assign(json);
+            deserialiser.from_json(json);
             this->template value<Target>() =
                 NullableHandler<TypeInNullable, Target>::convert(std::move(tmp));
         }
@@ -880,7 +872,7 @@ struct Deserialiser {
         template <typename... Args>
         Object(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_object(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             (deserialise_each<typename MemberInfo::Prototype>(
@@ -908,11 +900,11 @@ struct Deserialiser {
         template <typename... Args>
         DerivedObject(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             static_assert(std::is_base_of_v<BaseType, Derived>);
             if (!Lib::is_object(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
-            Base::assign(json);
+            Base::from_json(json);
             (deserialise_each<typename MemberInfo::Prototype>(
                  Lib::get_object(json),
                  typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*
@@ -939,7 +931,7 @@ struct Deserialiser {
         template <typename... Args>
         SelfDeserialisableObject(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_object(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             this->template value<Target>() = std::move(Target(Lib::get_object(json)));
@@ -961,7 +953,7 @@ struct Deserialiser {
 
         StringConst key[2];
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : Lib::get_array(json)) {
@@ -970,10 +962,10 @@ struct Deserialiser {
                     throw std::ios_base::failure("Type Unmatch!");
                 KeyType key_field;
                 DeserialisableType<KeyType> key_deserialiser(key_field);
-                key_deserialiser.assign(obj[key[0]]);
+                key_deserialiser.from_json(obj[key[0]]);
                 ValueType value_obj;
                 DeserialisableType<ValueType> value_deserialiser(value_obj);
-                value_deserialiser.assign(obj[key[1]]);
+                value_deserialiser.from_json(obj[key[1]]);
                 this->template value<Target>()[key_field] = std::move(value_obj);
             }
         }
@@ -1002,7 +994,7 @@ struct Deserialiser {
 
         StringConst key;
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
             for (const auto& i : Lib::get_array(json)) {
@@ -1011,10 +1003,10 @@ struct Deserialiser {
                     throw std::ios_base::failure("Type Unmatch!");
                 KeyType key_field;
                 DeserialisableType<KeyType> key_deserialiser(key_field);
-                key_deserialiser.assign(obj[key]);
+                key_deserialiser.from_json(obj[key]);
                 ValueType value_obj;
                 DeserialisableType<ValueType> value_deserialiser(value_obj);
-                value_deserialiser.assign(obj);
+                value_deserialiser.from_json(obj);
                 this->template value<Target>()[key_field] = std::move(value_obj);
             }
         }
@@ -1039,7 +1031,7 @@ struct Deserialiser {
         template <typename... Args>
         StringMap(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             static_assert(StringConvertor<KeyType>::value);
             if (!Lib::is_array(json) && !Lib::is_null(json))
                 throw std::ios_base::failure("Type Unmatch!");
@@ -1048,8 +1040,8 @@ struct Deserialiser {
                 ValueType value_;
                 DeserialisableType<KeyType> key_deserialiser(key);
                 DeserialisableType<ValueType> value_deserialiser(value_);
-                key_deserialiser.assign(_key);
-                value_deserialiser.assign(_value);
+                key_deserialiser.from_json(_key);
+                value_deserialiser.from_json(_value);
                 this->template value<Target>()[key] = std::move(value_);
             }
         }
@@ -1077,15 +1069,15 @@ struct Deserialiser {
 
         StringConst key[2];
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             if (!Lib::is_object(json))
                 throw std::ios_base::failure("Type Unmatch!");
             Type1& element1 = this->template value<Target>().first;
             Type2& element2 = this->template value<Target>().second;
             DeserialisableType<Type1> deserialiser1(element1);
             DeserialisableType<Type2> deserialiser2(element2);
-            deserialiser1.assign(Lib::get_object(json)[key[0]]);
-            deserialiser2.assign(Lib::get_object(json)[key[1]]);
+            deserialiser1.from_json(Lib::get_object(json)[key[0]]);
+            deserialiser2.from_json(Lib::get_object(json)[key[1]]);
         }
         Json to_json() const {
             typename Lib::JsonObject pair;
@@ -1128,9 +1120,9 @@ struct Deserialiser {
 
         const std::decay_t<Convertor> convertor;
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             Source tmp;
-            Prototype(tmp).assign(json);
+            Prototype(tmp).from_json(json);
             this->template value<Target>() = convertor(tmp);
         }
     };
@@ -1217,9 +1209,9 @@ struct Deserialiser {
             : DeserialisableBase(&source, std::forward<String>(name), optional),
               convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             Source tmp;
-            Type(tmp).assign(json);
+            Type(tmp).from_json(json);
             this->template value<Target>() = convertor.convertor(tmp);
         }
         Json to_json() const {
@@ -1286,7 +1278,7 @@ struct Deserialiser {
                 this->template value<Target>().template emplace<N>();
                 typename GetType<N, PrototypeTuple>::Type(
                     std::get<N>(this->template value<Target>()))
-                    .assign(json);
+                    .from_json(json);
             }
         }
         template <int N>
@@ -1297,7 +1289,7 @@ struct Deserialiser {
                            .to_json();
         }
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             int index = deductor(json);
             if (index == -1)
                 throw std::ios_base::failure("Type Unmatch!");
@@ -1317,7 +1309,7 @@ struct Deserialiser {
         template <typename... Args>
         JSONWrap(Args&&... args) : Base(std::forward<Args>(args)...) {}
 
-        inline void assign(const Json& json) {
+        inline void from_json(const Json& json) {
             this->template value<Target>() = json;
         }
         inline Json to_json() const {

@@ -1,5 +1,6 @@
 #generated
 json_deserialise*.h
+decorator.*.h
 macros.*.h
 type_deduction.*.h
 basic_types.*.hpp

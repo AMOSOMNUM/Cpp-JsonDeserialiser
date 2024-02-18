@@ -4,7 +4,8 @@ Serialise and Deserialise json from various types and data structures, performin
 Currently only support Qt Json Library and will support nlohmann soon.
 
 Headers only!  
-So You just need to add subdirectory and setup include path in cmake and include the autogen file "json_deserialise.h".
+So You just need to add subdirectory and setup include path in cmake, then include autogen files "json_deserialise.*lib_name*.h", and "json_deserialise.h" for the default one(You should set this by setting *JSON_DESERIALISE_DEFAULT_JSON_LIBRARY* in cmake).  
+Depending boost preprocessor library, please also add *boost_preprocessor/include* to your include path if your project does not config Boost.
 
 ## Basic Types
 
@@ -55,9 +56,9 @@ Supose you have a json like below:
 QJsonObject json;
 TypeA a;
 TypeB b;
-declare_deserialiser("A", a, a_holder);
-declare_deserialiser("B", b, b_holder);
-declare_top_object_deserialiser(deserialiser, a_holder, b_holder);
+Field a("A", obj.a);
+Field b("B", obj.b);
+ObjectDeserialiser deserialiser(a, b);
 // From File
 deserialiser.deserialise_file(FILENAME);
 // From String
@@ -84,10 +85,10 @@ struct Simple {
 };
 
 QJsonObject json;
-Sample obj;
-declare_deserialiser("A", obj.a, a_holder);
-declare_deserialiser("B", obj.b, b_holder);
-declare_top_object_deserialiser(deserialiser, a_holder, b_holder);
+Simple obj;
+Field a("A", obj.a);
+Field b("B", obj.b);
+ObjectDeserialiser deserialiser(a, b);
 deserialiser.deserialise(json); // And two other methods.
 std::cout << deserialiser.serialise(); // And two other methods.
 ```
@@ -107,13 +108,12 @@ declare_object(Sample,
 // Somewhere
 Sample s;
 QJsonObject json;
-declare_top_deserialiser(s, deserialiser);
-deserialiser.assign(json); // json only
-json = deserialiser.to_json().toObject(); // json only
+Deserialiser holder(s);
+holder.from_json(json);
+holder.from_file(FILENAME);
+json = holder.to_json().toObject();
 //Also
-declare_top_object_deserialiser(s, serialiser);
-json = s.deserialise_to_json(); // And two other methods.
-s.deserialise_file(FILENAME); // And two other methods.
+json = Serialise(s).toObject();
 ```
 
 ### 3. For Enum
@@ -168,6 +168,5 @@ enum class Type : int {
 } sample;
 declare_as_trivial(Type, int);
 
-declare_deserialiser("Enum", sample, holder);
-qDebug() << holder.to_json();
+qDebug() << Serialise(sample);
 ```

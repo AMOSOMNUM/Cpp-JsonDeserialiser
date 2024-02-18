@@ -1,0 +1,113 @@
+#ifndef JSON_DESERIALISER_@LIB_ID@_DECORATOR
+#define JSON_DESERIALISER_@LIB_ID@_DECORATOR
+
+#include "adaptor.@lib@.h"
+#include "json_deserialise.hpp"
+
+#cmakedefine JSON_DESERIALISER_DEFAULT_MODE
+#ifdef JSON_DESERIALISER_DEFAULT_MODE
+inline
+#endif
+#undef JSON_DESERIALISER_DEFAULT_MODE
+    namespace JsonDeserialiseDecoratorFor@LIB_ID@ {
+
+using Impl = JsonDeserialise::Implementation<JsonDeserialise::@LIB_ID@>;
+
+template <typename T>
+inline decltype(auto) Serialise(const T& source) {
+    return Impl::DeserialisableType<T>(source).to_json();
+}
+
+template <typename T>
+struct Deserialiser : public Impl::DeserialisableType<T> {
+    Deserialiser(T& source) : Impl::DeserialisableType<T>(source) {}
+
+    template <typename String>
+    inline void from_json_string(String&& str) {
+        Impl::JsonDeserialiser(*this)->deserialise(std::forward<String>(str));
+    }
+
+    template <typename String>
+    inline void from_file(String&& filepath) {
+        Impl::JsonDeserialiser(*this)->deserialise_file(std::forward<String>(filepath));
+    }
+};
+
+template <typename T>
+struct Serialiser {
+    using Base = Impl::DeserialisableType<T>;
+    const Base base;
+    Serialiser(const T& source) : base(source) {}
+
+    inline decltype(auto) to_json() const {
+        return base.to_json();
+    }
+};
+
+template <typename T, bool = std::is_base_of_v<T, Impl::DeserialisableBase>>
+struct Field : protected Impl::DeserialisableType<T> {
+    using Base = Impl::DeserialisableType<T>;
+    template <typename String>
+    Field(String&& key, T& source, bool optional = false)
+        : Base(std::forward<String>(key), source, optional) {}
+};
+
+template <typename T>
+struct Field<T, true> : protected T {
+    using Base = T;
+    template <typename... Args>
+    Field(Args&&... args) : Base(std::forward<Args>(args)...) {}
+};
+
+template <typename U, typename V, typename... Args>
+struct ObjectDeserialiser
+    : public Impl::JsonDeserialiser<typename Field<U>::Base, typename Field<V>::Base,
+                                    typename Field<Args>::Base...> {
+    using Base = typename Impl::JsonDeserialiser<typename Field<U>::Base, typename Field<V>::Base,
+                                                 typename Field<Args>::Base...>;
+
+    ObjectDeserialiser(Field<U>& arg1, Field<V>& arg2, Field<Args>&... args)
+        : Base(arg1, arg2, args...) {}
+};
+
+template <typename T, bool = std::is_base_of_v<T, Impl::DeserialisableBase>>
+struct ConstField : protected Impl::DeserialisableType<T> {
+    using Base = Impl::DeserialisableType<T>;
+    template <typename String>
+    ConstField(String&& key, const T& source) : Base(std::forward<String>(key), source) {}
+};
+
+template <typename T>
+struct ConstField<T, true> : protected T {
+    using Base = T;
+    template <typename... Args>
+    ConstField(Args&&... args) : Base(std::forward<Args>(args)...) {}
+};
+
+template <typename U, typename V, typename... Args>
+struct ObjectSerialiser {
+    using Base =
+        typename Impl::JsonDeserialiser<typename ConstField<U>::Base, typename ConstField<V>::Base,
+                                        typename ConstField<Args>::Base...>;
+    const Base base;
+
+    ObjectSerialiser(ConstField<U>& arg1, ConstField<V>& arg2, ConstField<Args>&... args)
+        : Base(arg1, arg2, args...) {}
+
+    template <typename String>
+    inline decltype(auto) to_file(String&& filepath, bool compress = false) const {
+        base.serialise_to_file(std::forward<String>(filepath), compress);
+    }
+
+    inline decltype(auto) to_string(bool compress = false) const {
+        base.serialise(compress);
+    }
+
+    inline decltype(auto) to_json() const {
+        base.serialise_to_json();
+    }
+};
+
+} // namespace JsonDeserialiseDecoratorFor@LIB_ID@
+
+#endif
