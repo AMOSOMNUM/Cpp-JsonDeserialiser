@@ -1104,19 +1104,15 @@ struct Implementation {
     };
 
     template <typename Convertor>
-    struct DeserialiseOnlyExtension : public DeserialisableBase {
+    struct DeserialiseOnlyExtension : public DeserialisableBaseHelper<typename Convertor::Target> {
         using Target = typename Convertor::Target;
         using Source = typename Convertor::Source;
+        using Base = DeserialisableBaseHelper<Target>;
         using Prototype = DeserialisableType<typename Convertor::Type>;
 
-        template <typename T>
-        DeserialiseOnlyExtension(T&& convertor, Target& source)
-            : DeserialisableBase(&source), convertor(std::forward<T>(convertor)) {}
-        template <typename T, typename String>
-        DeserialiseOnlyExtension(T&& convertor, String&& name, Target& source,
-                                 bool optional = false)
-            : DeserialisableBase(&source, std::forward<String>(name), optional),
-              convertor(std::forward<T>(convertor)) {}
+        template <typename T, typename... Args>
+        DeserialiseOnlyExtension(T&& convertor, Args&&... args)
+            : Base(std::forward<Args>(args)...), convertor(std::forward<T>(convertor)) {}
 
         const std::decay_t<Convertor> convertor;
 
@@ -1146,18 +1142,15 @@ struct Implementation {
     };
 
     template <typename Convertor>
-    struct SerialiseOnlyExtension : public DeserialisableBase {
+    struct SerialiseOnlyExtension : public DeserialisableBaseHelper<typename Convertor::Target> {
         using Target = typename Convertor::Target;
         using Source = typename Convertor::Source;
+        using Base = DeserialisableBaseHelper<Target>;
         using Prototype = DeserialisableType<typename Convertor::Type>;
 
-        template <typename T>
-        SerialiseOnlyExtension(T&& convertor, const Target& source)
-            : DeserialisableBase(&source), convertor(std::forward<T>(convertor)) {}
-        template <typename T, typename String>
-        SerialiseOnlyExtension(T&& convertor, String&& name, const Target& source)
-            : DeserialisableBase(&source, std::forward<String>(name)),
-              convertor(std::forward<T>(convertor)) {}
+        template <typename T, typename... Args>
+        SerialiseOnlyExtension(T&& convertor, Args&&... args)
+            : Base(std::forward<Args>(args)...), convertor(std::forward<T>(convertor)) {}
 
         const std::decay_t<Convertor> convertor;
 
@@ -1189,25 +1182,18 @@ struct Implementation {
     };
 
     template <typename Convertor>
-    class Extension : public DeserialisableBase {
-    public:
+    struct Extension : public DeserialisableBaseHelper<typename Convertor::Target> {
         using Type = DeserialisableType<typename Convertor::Type>;
         using Target = typename Convertor::Target;
         using Source = typename Convertor::Source;
+        using Base = DeserialisableBaseHelper<typename Convertor::Target>;
 
-    protected:
-        std::decay_t<Convertor> convertor;
+        template <typename U, typename V, typename... Args>
+        Extension(U&& convertor, V&& deconvertor, Args&&... source)
+            : Base(std::forward<Args>(args)...),
+              convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
 
-    public:
-        template <typename U, typename V>
-        Extension(U&& convertor, V&& deconvertor, Target& source)
-            : DeserialisableBase(&source),
-              convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
-        template <typename U, typename V, typename String>
-        Extension(U&& convertor, V&& deconvertor, String&& name, Target& source,
-                  bool optional = false)
-            : DeserialisableBase(&source, std::forward<String>(name), optional),
-              convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
+        const std::decay_t<Convertor> convertor;
 
         void from_json(const Json& json) {
             Source tmp;

@@ -1,5 +1,5 @@
-#ifndef JSON_DESERIALISER_@LIB_ID@_DECORATOR
-#define JSON_DESERIALISER_@LIB_ID@_DECORATOR
+#ifndef JSON_DESERIALISER_ @LIB_ID @_DECORATOR
+#define JSON_DESERIALISER_ @LIB_ID @_DECORATOR
 
 #include "adaptor.@lib@.h"
 #include "json_deserialise.hpp"
@@ -9,7 +9,7 @@
 inline
 #endif
 #undef JSON_DESERIALISER_DEFAULT_MODE
-    namespace JsonDeserialiseDecoratorFor@LIB_ID@ {
+namespace JsonDeserialiseDecoratorFor@LIB_ID@ {
 
 using Impl = JsonDeserialise::Implementation<JsonDeserialise::@LIB_ID@>;
 
@@ -33,17 +33,6 @@ struct Deserialiser : public Impl::DeserialisableType<T> {
     }
 };
 
-template <typename T>
-struct Serialiser {
-    using Base = Impl::DeserialisableType<T>;
-    const Base base;
-    Serialiser(const T& source) : base(source) {}
-
-    inline decltype(auto) to_json() const {
-        return base.to_json();
-    }
-};
-
 template <typename T, bool = std::is_base_of_v<T, Impl::DeserialisableBase>>
 struct Field : protected Impl::DeserialisableType<T> {
     using Base = Impl::DeserialisableType<T>;
@@ -54,10 +43,15 @@ struct Field : protected Impl::DeserialisableType<T> {
 
 template <typename T>
 struct Field<T, true> : protected T {
-    using Base = T;
-    template <typename... Args>
-    Field(Args&&... args) : Base(std::forward<Args>(args)...) {}
+    using T::T;
 };
+
+// This conversion does not check anything, make sure json_name is given.
+template <typename T>
+inline Field<T>& ToField(T& arg) {
+    static_assert(!std::is_same_v<T, Deserialiser<typename T::Target>>, "json_name is not given");
+    return static_cast<Field<T>&>(arg);
+}
 
 template <typename U, typename V, typename... Args>
 struct ObjectDeserialiser
@@ -79,10 +73,15 @@ struct ConstField : protected Impl::DeserialisableType<T> {
 
 template <typename T>
 struct ConstField<T, true> : protected T {
-    using Base = T;
-    template <typename... Args>
-    ConstField(Args&&... args) : Base(std::forward<Args>(args)...) {}
+    using T::T;
 };
+
+// This conversion does not check anything, make sure json_name is given.
+template <typename T>
+inline ConstField<T>& ToConstField(T& arg) {
+    static_assert(!std::is_same_v<T, Deserialiser<typename T::Target>>, "json_name is not given");
+    return static_cast<ConstField<T>&>(arg);
+}
 
 template <typename U, typename V, typename... Args>
 struct ObjectSerialiser {

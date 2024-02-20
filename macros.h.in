@@ -29,11 +29,11 @@
 #define @lib@_declare_top_map_deserialiser(data_name, var_name, style, ...)                        \
     typename JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Style<         \
         JsonDeserialise::@LIB_ID@Private::Impl::MapStyle::style>                                   \
-        var_name(data_name, ##__VA_ARGS__);
+        var_name(__VA_ARGS__ PP_VA_OPT_COMMA(__VA_ARGS__) data_name);
 #define @lib@_declare_map_deserialiser(json_name, data_name, var_name, style, ...)                 \
     typename JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Style<         \
         JsonDeserialise::@LIB_ID@Private::Impl::MapStyle::style>                                   \
-        var_name(json_name, data_name, ##__VA_ARGS__);
+        var_name(__VA_ARGS__ PP_VA_OPT_COMMA(__VA_ARGS__) json_name, data_name);
 #define @lib@_declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)           \
     JsonDeserialise::@LIB_ID@Private::Deserialisable<decltype(data_name)>::Type var_name(          \
         json_name1, json_name2, data_name);

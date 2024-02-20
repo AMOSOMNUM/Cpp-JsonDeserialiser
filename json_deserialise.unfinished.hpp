@@ -9,8 +9,8 @@
         AfterDeserialise(Functor&& f, Args&&... args)
             : Prototype(args...), functor(std::forward<Functor>(f)) {}
 
-        inline void assign(const Json& json) {
-            Prototype::assign(json);
+        inline void from_json(const Json& json) {
+            Prototype::from_json(json);
             functor(this->template value<T>());
         }
     };
@@ -40,9 +40,9 @@
         BeforeDeserialise(Functor&& f, Args&&... args)
             : Prototype(args...), functor(std::forward<Functor>(f)) {}
 
-        inline void assign(const Json& json) {
+        inline void from_json(const Json& json) {
             functor(this->template value<T>());
-            Prototype::assign(json);
+            Prototype::from_json(json);
         }
     };
 
@@ -60,83 +60,38 @@
             return Prototype::to_json();
         }
     };
+
+    template <typename UnionType, auto TypeInfo, typename... MemberInfo>
+    struct Union : public DeserialisableBaseHelper<UnionType> {
+        using Target = UnionType;
+        using Base = DeserialisableBaseHelper<UnionType>;
+    };
+
     template <typename Pointer, typename BaseType, typename DerivedTypes>
-    struct PointerDowncast : public DeserialisableBaseHelper<Pointer> {
+    struct BasePointerDeserialise : public DeserialisableBaseHelper<Pointer> {
         using Target = Pointer;
         using Base = DeserialisableBaseHelper<Target>;
-        const std::function<int(const Json&)> deductor1;
-        const std::function<int(const BaseType&)> deductor2;
+        const std::function<int(const Json&)> deductor;
 
-        template <typename Deductor1, typename Deductor2, typename... Args>
-        PointerDowncast(Deductor1&& f1, Deductor2&& f2, Args&&... args)
-            : Base(std::forward<Args>(args)...), deductor1(std::forward<Deductor1>(f1)),
-              deductor2(std::forward<Deductor2>(f2)) {}
+        template <typename Deductor, typename... Args>
+        BasePointer(Deductor&& f, Args&&... args)
+            : Base(std::forward<Args>(args)...), deductor(std::forward<Deductor>(f)) {}
 
         template <int N>
         inline void assign_if_eq(int index, const typename Lib::JsonObject& obj) {
             using Type = typename GetType<N, DerivedTypes>::Type;
             if (N == index) {
                 auto ptr = new Type();
-                DeserialisableType<Type>(*ptr)->assign(obj);
+                DeserialisableType<Type>(*ptr)->from_json(obj);
                 this->template value<Target>() = ptr;
             }
         }
-        template <int N>
-        inline void serialise_if_eq(int index, Json& json) {
-            using Type = typename GetType<N, DerivedTypes>::Type;
-            if (N == index)
-                json = DeserialisableType<Type>(*this->template value<Target>()).to_json();
-        }
 
-        void assign(const Json& json) {
+        void from_json(const Json& json) {
             int index = deductor1(json);
             if (index == -1)
                 throw std::ios_base::failure("Type Unmatch!");
             (assign_if_eq<pack>(index, obj), ...);
-        }
-        Json to_json() const {
-            Json result;
-            int index = deductor2(*this->template value<Target>());
-            if (index == -1)
-                throw std::ios_base::failure("Type Unmatch!");
-            (serialise_if_eq<pack>(index, result), ...);
-        }
-    };
-
-    template <typename Prototype, typename Guard>
-    struct GivenLockGuard;
-
-    template <typename Prototype, template <typename> typename Guard, typename Lock>
-    struct GivenLockGuard<Prototype, Guard<Lock>> : public Prototype {
-        mutable Lock& lock;
-
-        template <typename... Args>
-        GivenLockGuard(Lock& lock, Args&&... args) : Prototype(args...), lock(lock) {}
-
-        inline void assign(const Json& json) {
-            Guard guard(lock);
-            Prototype::assign(json);
-        }
-        inline Json to_json() const {
-            Guard guard(lock);
-            return Prototype::to_json();
-        }
-    };
-
-    template <typename Prototype, template <typename...> typename Guard, typename Lock>
-    struct GivenLockGuard<Prototype, Guard<Lock>> : public Prototype {
-        mutable Lock& lock;
-
-        template <typename... Args>
-        GivenLockGuard(Lock& lock, Args&&... args) : Prototype(args...), lock(lock) {}
-
-        inline void assign(const Json& json) {
-            Guard guard(lock);
-            Prototype::assign(json);
-        }
-        inline Json to_json() const {
-            Guard guard(lock);
-            return Prototype::to_json();
         }
     };
 
@@ -145,9 +100,9 @@
         template <typename... Args>
         MemberLockGuard(Args&&... args) : Prototype(args...) {}
 
-        inline void assign(const Json& json) {
+        inline void from_json(const Json& json) {
             Guard guard(this->template value<T>().*member_offset);
-            Base::assign(json);
+            Base::from_json(json);
         }
         inline Json to_json() const {
             Guard guard(this->template value<T>().*member_offset);
@@ -163,9 +118,9 @@
         FetchLockGuard(Functor&& f, Args&&... args)
             : Prototype(args...), functor(std::forward<Functor>(f)) {}
 
-        inline void assign(const Json& json) {
+        inline void from_json(const Json& json) {
             Guard guard(functor(this->template value<T>()));
-            Base::assign(json);
+            Base::from_json(json);
         }
         inline Json to_json() const {
             Guard guard(functor(this->template value<T>()));
