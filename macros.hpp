@@ -27,7 +27,7 @@
     struct Customised<member_ptr> {                                                                \
         using Type = RegisteredExtension<member_ptr>;                                              \
     };
-#define register_object_member_info_map_style(member_ptr, style, ...)                              \
+#define register_object_member_info_style(member_ptr, style, ...)                              \
     template <>                                                                                    \
     struct RegisteredStyleInfo<member_ptr>                                                         \
         : public Deserialisable<typename MemberPtrToType<member_ptr>::Type>::Style<(style)> {};    \
@@ -120,6 +120,6 @@
     (serialise_only_extension, json_name, member_name, false, void, functor)
 #define optional_object_member_with_serialise_only_extension(json_name, member_name, functor)      \
     (serialise_only_extension, json_name, member_name, true, void, functor)
-#define object_member_with_map_style(json_name, member_name, style, ...)                           \
-    (map_style, json_name, member_name, false, void, style, ##__VA_ARGS__)
+#define object_member_with_map_style(json_name, member_name, style_name, ...)                           \
+    (style, json_name, member_name, false, void, JsonDeserialise::MapStyle::style_name, ##__VA_ARGS__)
 #endif // JSON_DESERIALISER_GLOBAL_MACRO

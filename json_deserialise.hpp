@@ -100,7 +100,7 @@ struct GetArrayInsertWay {
     }
 };
 
-enum MapStyle {
+enum class MapStyle {
     STRING_MAP,
     OBJECT_ARRAY,
     PAIR_ARRAY,
@@ -618,26 +618,6 @@ struct Implementation {
 
         template <typename U>
         ObjectArrayInfo(U&& arg) : Lib::String(std::forward<U>(arg)) {}
-    };
-
-    template <auto member_ptr, typename T>
-    struct Coercion {
-        using Type = ObjectArrayInfo<member_ptr>;
-    };
-
-    template <auto member_ptr>
-    struct Coercion<member_ptr, const typename Lib::String&> {
-        using Type = const ObjectArrayInfo<member_ptr>&;
-    };
-
-    template <auto member_ptr>
-    struct Coercion<member_ptr, typename Lib::String&> {
-        using Type = ObjectArrayInfo<member_ptr>&;
-    };
-
-    template <auto member_ptr>
-    struct Coercion<member_ptr, typename Lib::String&&> {
-        using Type = ObjectArrayInfo<member_ptr>&&;
     };
 
     template <typename T, typename... MemberInfo>
@@ -1189,7 +1169,7 @@ struct Implementation {
         using Base = DeserialisableBaseHelper<typename Convertor::Target>;
 
         template <typename U, typename V, typename... Args>
-        Extension(U&& convertor, V&& deconvertor, Args&&... source)
+        Extension(U&& convertor, V&& deconvertor, Args&&... args)
             : Base(std::forward<Args>(args)...),
               convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
 

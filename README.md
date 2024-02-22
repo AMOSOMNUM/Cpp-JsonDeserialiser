@@ -138,7 +138,8 @@ A field like below
 
 ```c++
 Type sample;
-declare_extension_deserialiser("Enum", sample, holder, str2enum, enum2str);
+Field field(Extension, "Enum", sample, str2enum, enum2str);
+ExtensionDeserialiser holder(sample, str2enum, enum2str)
 qDebug() << holder.to_json();
 ```
 
@@ -146,7 +147,7 @@ qDebug() << holder.to_json();
 
 ```c++
 // This declaration enables reflection to all fields of this enum type.
-declare_global_extension(Type, str2enum, enum2str);
+declare_default_extension(Type, str2enum, enum2str);
 
 struct XXX {
     //Other fields...
@@ -169,4 +170,100 @@ enum class Type : int {
 declare_as_trivial(Type, int);
 
 qDebug() << Serialise(sample);
+```
+
+### 3. For Containers
+
+#### std::pair
+
+```c++
+std::pair<int, std::string> sample;
+PairDeserialiser deserialiser(sample, "id", "txt");
+Field field(Pair, "key", sample, "id", "txt");
+```
+
+And the json would be:
+
+```json
+{
+    "id":0,
+    "txt":"STRING"
+}
+```
+
+#### std::map
+
+##### Default Style
+
+```c++
+std::map<std::string, int> sample;
+Deserialiser deserialiser(sample);
+Field field("key");
+```
+
+And the json would be:
+
+```json
+{
+    "STRING1":0,
+    "STRING2":1
+}
+```
+
+##### Style II
+
+```c++
+std::map<std::string, Simple> sample;
+MapDeserialiser deserialiser(Map_As_ObjectArray, sample, "id");
+Field field(Map_As_ObjectArray, "key", sample, "id");
+```
+
+And the json would be:
+
+```json
+[{
+    "id":"STRING",
+    "a":1,
+    "b":null
+}]
+```
+
+##### Style III
+
+```c++
+std::map<std::string, Simple> sample;
+MapDeserialiser deserialiser(Map_As_PairArray, sample, "key", "value");
+Field field(Map_As_PairArray, "key", sample, "key", "value");
+```
+
+And the json would be:
+
+```json
+[{
+    "key":"STRING",
+    "value":
+    {
+        "a":1,
+        "b":"STRING"
+    }
+}]
+```
+
+#### ObjectArray
+
+If you have a container of a class type and you don't want to register it globally.
+
+```c++
+std::vector<Simple> sample;
+ObjectArrayDeserialiser deserialiser(sample, field_info<&Simple::a>("key"), field_info<&Simple::b>("value"));
+Field field(ObjectArray, "key", sample, field_info<&Simple::a>("key"), field_info<&Simple::b>("value"));
+```
+
+And the json would be:
+
+```json
+[{
+    "a":1,
+    "b":"STRING"
+}]
 ```

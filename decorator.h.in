@@ -14,13 +14,13 @@ namespace JsonDeserialiseDecoratorFor@LIB_ID@ {
 using Impl = JsonDeserialise::Implementation<JsonDeserialise::@LIB_ID@>;
 
 template <typename T>
-inline decltype(auto) Serialise(const T& source) {
-    return Impl::DeserialisableType<T>(source).to_json();
+inline decltype(auto) Serialise(const T& target) {
+    return Impl::DeserialisableType<T>(target).to_json();
 }
 
 template <typename T>
 struct Deserialiser : public Impl::DeserialisableType<T> {
-    Deserialiser(T& source) : Impl::DeserialisableType<T>(source) {}
+    Deserialiser(T& target) : Impl::DeserialisableType<T>(target) {}
 
     template <typename String>
     inline void from_json_string(String&& str) {
@@ -33,25 +33,13 @@ struct Deserialiser : public Impl::DeserialisableType<T> {
     }
 };
 
-template <typename T, bool = std::is_base_of_v<T, Impl::DeserialisableBase>>
-struct Field : protected Impl::DeserialisableType<T> {
+template <typename T>
+struct Field : public Impl::DeserialisableType<T> {
     using Base = Impl::DeserialisableType<T>;
     template <typename String>
-    Field(String&& key, T& source, bool optional = false)
-        : Base(std::forward<String>(key), source, optional) {}
+    Field(String&& key, T& target, bool optional = false)
+        : Base(std::forward<String>(key), target, optional) {}
 };
-
-template <typename T>
-struct Field<T, true> : protected T {
-    using T::T;
-};
-
-// This conversion does not check anything, make sure json_name is given.
-template <typename T>
-inline Field<T>& ToField(T& arg) {
-    static_assert(!std::is_same_v<T, Deserialiser<typename T::Target>>, "json_name is not given");
-    return static_cast<Field<T>&>(arg);
-}
 
 template <typename U, typename V, typename... Args>
 struct ObjectDeserialiser
@@ -64,23 +52,21 @@ struct ObjectDeserialiser
         : Base(arg1, arg2, args...) {}
 };
 
-template <typename T, bool = std::is_base_of_v<T, Impl::DeserialisableBase>>
-struct ConstField : protected Impl::DeserialisableType<T> {
+template <typename T>
+struct ConstField : public Impl::DeserialisableType<T> {
     using Base = Impl::DeserialisableType<T>;
     template <typename String>
-    ConstField(String&& key, const T& source) : Base(std::forward<String>(key), source) {}
+    ConstField(String&& key, const T& target) : Base(std::forward<String>(key), target) {}
 };
 
 template <typename T>
-struct ConstField<T, true> : protected T {
-    using T::T;
+struct ConstField<Field<T>> : public Field<T> {
+    using Field<T>::Field;
 };
 
-// This conversion does not check anything, make sure json_name is given.
 template <typename T>
-inline ConstField<T>& ToConstField(T& arg) {
-    static_assert(!std::is_same_v<T, Deserialiser<typename T::Target>>, "json_name is not given");
-    return static_cast<ConstField<T>&>(arg);
+inline ConstField<T>& ToConstField(Field<T>& arg) {
+    return static_cast<ConstField<Field<T>>&>(arg);
 }
 
 template <typename U, typename V, typename... Args>
@@ -106,6 +92,153 @@ struct ObjectSerialiser {
         base.serialise_to_json();
     }
 };
+
+inline struct Extension_t {
+} Extension;
+template <typename T, typename U, typename V>
+struct ExtensionDeserialiser
+    : public decltype(Impl::Extension(std::declval<U>(), std::declval<V>(), *((T*)nullptr))) {
+    using Base = decltype(Impl::Extension(std::declval<U>(), std::declval<V>(), *((T*)nullptr)));
+    ExtensionDeserialiser(T& target, U&& f1, V&& f2)
+        : Base(std::forward<U>(f1), std::forward<V>(f2), target) {}
+};
+template <typename T>
+struct Field<Impl::Extension<T>> : public Impl::Extension<T> {
+    using Base = Impl::Extension<T>;
+    template <typename String, typename U, typename V>
+    Field(Extension_t&, String&& key, T& target, U&& f1, V&& f2, bool optional = false)
+        : Base(std::forward<U>(f1), std::forward<V>(f2), std::forward<String>(key), target,
+               optional) {}
+};
+template <typename T, typename String, typename U, typename V, typename... Args>
+Field(Extension_t&, String&&, T&, U&&, V&&, Args&&...)
+    -> Field<decltype(Impl::Extension(std::declval<U>(), std::declval<V>(), *((T*)nullptr)))>;
+
+inline struct DeserialiseOnlyExtension_t {
+} DeserialiseOnlyExtension;
+template <typename T, typename F>
+struct OneWayExtensionDeserialiser
+    : public decltype(Impl::DeserialiseOnlyExtension(std::declval<F>(), *((T*)nullptr))) {
+    using Base = decltype(Impl::DeserialiseOnlyExtension(std::declval<F>(), *((T*)nullptr)));
+    OneWayExtensionDeserialiser(T& target, F&& f)
+        : Base(std::forward<F>(f), target) {}
+};
+template <typename T>
+struct Field<Impl::DeserialiseOnlyExtension<T>> : public Impl::Extension<T> {
+    using Base = Impl::DeserialiseOnlyExtension<T>;
+    template <typename String, typename F>
+    Field(DeserialiseOnlyExtension_t&, String&& key, T& target, F&& f, bool optional = false)
+        : Base(std::forward<F>(f), std::forward<String>(key), target,
+               optional) {}
+};
+template <typename T, typename String, typename F, typename... Args>
+Field(DeserialiseOnlyExtension_t&, String&&, T&, F&&, Args&&...)
+    -> Field<decltype(Impl::DeserialiseOnlyExtension(std::declval<F>(), *((T*)nullptr)))>;
+
+inline struct SerialiseOnlyExtension_t {
+} SerialiseOnlyExtension;
+template <typename T, typename F>
+struct OneWayExtensionSerialiser
+    : public decltype(Impl::SerialiseOnlyExtension(std::declval<F>(), *((T*)nullptr))) {
+    using Base = decltype(Impl::SerialiseOnlyExtension(std::declval<F>(), *((T*)nullptr)));
+    OneWayExtensionSerialiser(const T& target, F&& f)
+        : Base(std::forward<F>(f), target) {}
+};
+template <typename T>
+struct ConstField<Impl::SerialiseOnlyExtension<T>> : public Impl::Extension<T> {
+    using Base = Impl::SerialiseOnlyExtension<T>;
+    template <typename String, typename F>
+    ConstField(SerialiseOnlyExtension_t&, String&& key, const T& target, F&& f,
+               bool optional = false)
+        : Base(std::forward<F>(f), std::forward<String>(key), target, optional) {}
+};
+template <typename T, typename String, typename F, typename... Args>
+ConstField(SerialiseOnlyExtension_t&, String&&, const T&, F&&, Args&&...)
+    -> ConstField<decltype(Impl::SerialiseOnlyExtension(std::declval<F>(), *((T*)nullptr)))>;
+
+struct Map_t {};
+struct Map_As_StringMap_t : Map_t {
+    static constexpr auto value = JsonDeserialise::MapStyle::STRING_MAP;
+} Map_As_StringMap;
+struct Map_As_ObjectArray_t : Map_t {
+    static constexpr auto value = JsonDeserialise::MapStyle::OBJECT_ARRAY;
+} Map_As_ObjectArray;
+struct Map_As_PairArray_t : Map_t {
+    static constexpr auto value = JsonDeserialise::MapStyle::PAIR_ARRAY;
+} Map_As_PairArray;
+template <typename T, typename MapStyle>
+struct MapDeserialiser
+    : public JsonDeserialise::@LIB_ID@::Deserialisable<T>::template Style<MapStyle::value>::Type {
+    using Base
+        = typename JsonDeserialise::V_ABCD_V::Deserialisable<T>::template Style<MapStyle::value>::Type;
+    template <typename... Args>
+    MapDeserialiser(MapStyle&, T& target, Args&&... args)
+        : Base(std::forward<Args>(args)..., target) {}
+    template <typename... Args>
+    MapDeserialiser(MapStyle&, T& target, bool optional, Args&&... args)
+        : Base(std::forward<Args>(args)..., target, optional) {}
+};
+template <typename T, typename MapStyle>
+struct Field<MapDeserialiser<T, MapStyle>> : public MapDeserialiser<T, MapStyle>::Base {
+    using Base = typename MapDeserialiser<T, MapStyle>::Base;
+    template <typename String, typename... Args>
+    Field(MapStyle&, String&& key, T& target, Args&&... args)
+        : Base(std::forward<Args>(args)..., std::forward<String>(key), target) {}
+    template <typename String, typename... Args>
+    Field(MapStyle&, String&& key, T& target, bool optional, Args&&... args)
+        : Base(std::forward<Args>(args)..., std::forward<String>(key), target, optional) {}
+};
+template <typename MapStyle, typename T, typename String, typename... Args>
+Field(MapStyle&, String&&, T&, Args&&...) -> Field<MapDeserialiser<T, MapStyle>>;
+
+inline struct Pair_t {
+} Pair;
+template <typename T>
+struct PairDeserialiser : public Impl::DeserialisableType<T> {
+    using Base = Impl::DeserialisableType<T>;
+    template <typename String1, typename String2>
+    PairDeserialiser(T& target, String1&& name1, String2&& name2)
+        : Base(std::forward<String1>(name1), std::forward<String2>(name2), target) {}
+};
+template <typename T>
+struct Field<PairDeserialiser<T>> : public PairDeserialiser<T>::Base {
+    using Base = typename PairDeserialiser<T>::Base;
+    template <typename String, typename String1, typename String2>
+    Field(Pair_t&, String&& key, T& target, String1&& name1, String2&& name2, bool optional = false)
+        : Base(std::forward<String1>(name1), std::forward<String2>(name2),
+               std::forward<String>(key), target, optional) {}
+};
+template <typename T, typename String, typename... Args>
+Field(Pair_t&, String&&, T&, Args&&...) -> Field<PairDeserialiser<T>>;
+
+inline struct ObjectArray_t {
+} ObjectArray;
+template <auto member_ptr>
+decltype(auto) field_info(const JsonDeserialise::@LIB_ID@::String& arg) {
+    return static_cast<const Impl::ObjectArrayInfo<member_ptr>&>(arg);
+}
+template <auto member_ptr>
+decltype(auto) field_info(JsonDeserialise::@LIB_ID@::String&& arg) {
+    return static_cast<Impl::ObjectArrayInfo<member_ptr>&&>(arg);
+}
+template <typename T, typename... Args>
+struct ObjectArrayDeserialiser : public Impl::ObjectArray<T, std::decay_t<Args>...> {
+    using Base = Impl::ObjectArray<T, std::decay_t<Args>...>;
+    ObjectArrayDeserialiser(T& target, Args&&... args)
+        : Base(target, std::forward<Args>(args)...) {}
+};
+template <typename T, typename... Args>
+struct Field<ObjectArrayDeserialiser<T, Args...>> : public ObjectArrayDeserialiser<T, Args...>::Base {
+    using Base = typename ObjectArrayDeserialiser<T, Args...>::Base;
+    template <typename String>
+    Field(ObjectArray_t&, String&& key, T& target, Args&&... args)
+        : Base(std::forward<String>(key), target, false, std::forward<Args>(args)...) {}
+    template <typename String>
+    Field(ObjectArray_t&, String&& key, T& target, bool optional, Args&&... args)
+        : Base(std::forward<String>(key), target, optional, std::forward<Args>(args)...) {}
+};
+template <typename T, typename String, typename... Args>
+Field(ObjectArray_t&, String&&, T&, Args&&...) -> Field<ObjectArrayDeserialiser<T, Args...>>;
 
 } // namespace JsonDeserialiseDecoratorFor@LIB_ID@
 
