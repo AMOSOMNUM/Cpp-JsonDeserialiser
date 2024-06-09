@@ -196,6 +196,16 @@ namespace JsonDeserialise::@LIB_ID@Private {
     };
 
     template <>
+    struct Deserialisable<int64_t> {
+        using Type = Impl::Integer<true, 8>;
+    };
+
+    template <>
+    struct Deserialisable<uint64_t> {
+        using Type = Impl::Integer<false, 8>;
+    };
+
+    template <>
     struct Deserialisable<double> {
         using Type = Impl::Real<double>;
     };

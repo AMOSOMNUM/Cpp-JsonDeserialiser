@@ -84,8 +84,12 @@ struct QtJsonLib {
         return object.contains(key);
     }
 
+    inline static void insert(JsonObject& object, const String& key, Json&& json) {
+        object.insert(key, std::move(json));
+    }
+
     inline static void append(JsonArray& array, Json&& json) {
-        return array.append(std::move(json));
+        array.append(std::move(json));
     }
 
     inline static Json uint2json(unsigned integer) {
@@ -114,6 +118,13 @@ struct QtJsonLib {
         if (!ok)
             throw std::ios_base::failure("Type Unmatch!");
         return result;
+    }
+    
+    inline static String tolower(const String& str) {
+        return str.toLower();
+    }
+    inline static bool empty_str(const String& str) {
+        return str.isEmpty();
     }
 
     // String Convertors

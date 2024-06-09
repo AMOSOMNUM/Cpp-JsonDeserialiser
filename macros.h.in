@@ -26,8 +26,17 @@
         using Type = Impl::AsTrivial<type_name, as>;                                               \
     };                                                                                             \
     }
+#define @lib@_declare_enum_as(type_name, as) @lib@_declare_as_trivial(type_name, as)  
+#define @lib@_declare_enum(type_name)                                                              \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                   \
+    template <>                                                                                    \
+    struct Deserialisable<type_name> {                                                             \
+        using AsType = typename Impl::Integer<true, sizeof(type_name)>::Target;                    \
+        using Type = Impl::AsTrivial<type_name, AsType>;                                           \
+    };                                                                                             \
+    }  
 #define @lib@_declare_named_extension(name, target_type, convertor, deconvertor)                   \
-    namespace JsonDeserialise::@LIB_ID@Private::Extension {                                              \
+    namespace JsonDeserialise::@LIB_ID@Private::Extension {                                        \
     namespace ExtensionBase {                                                                      \
         using name = decltype(Impl::Extension(convertor, deconvertor, *(target_type*)nullptr));    \
     }                                                                                              \
@@ -38,7 +47,7 @@
     };                                                                                             \
     }
 #define @lib@_declare_default_extension(target_type, convertor, deconvertor)                       \
-    namespace JsonDeserialise::@LIB_ID@Private {                                                         \
+    namespace JsonDeserialise::@LIB_ID@Private {                                                   \
     template <>                                                                                    \
     struct DefinedExtensionBase<target_type> {                                                     \
         using Type = decltype(Impl::Extension(convertor, deconvertor, *(target_type*)nullptr));    \
@@ -99,6 +108,8 @@
 #define declare_object_with_base_class(object_type, base_type, ...)                                \
     @lib@_declare_object_with_base_class(object_type, base_type, __VA_ARGS__)
 #define declare_as_trivial(type_name, as) @lib@_declare_as_trivial(type_name, as)
+#define declare_enum(type_name) @lib@_declare_enum(type_name)
+#define declare_enum_as(type_name, as) @lib@_declare_enum_as(type_name, as)
 #define declare_default_extension(target_type, convertor, deconvertor)                             \
     @lib@_declare_default_extension(target_type, convertor, deconvertor)
 #define declare_named_extension(name, target_type, convertor, deconvertor)                         \

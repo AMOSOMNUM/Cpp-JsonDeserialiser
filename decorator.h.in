@@ -1,5 +1,5 @@
-#ifndef JSON_DESERIALISER_ @LIB_ID @_DECORATOR
-#define JSON_DESERIALISER_ @LIB_ID @_DECORATOR
+#ifndef JSON_DESERIALISER_@LIB_ID@_DECORATOR
+#define JSON_DESERIALISER_@LIB_ID@_DECORATOR
 
 #include "adaptor.@lib@.h"
 #include "json_deserialise.hpp"
@@ -24,12 +24,12 @@ struct Deserialiser : public Impl::DeserialisableType<T> {
 
     template <typename String>
     inline void from_json_string(String&& str) {
-        Impl::JsonDeserialiser(*this)->deserialise(std::forward<String>(str));
+        Impl::JsonDeserialiser(*this).deserialise(std::forward<String>(str));
     }
 
     template <typename String>
     inline void from_file(String&& filepath) {
-        Impl::JsonDeserialiser(*this)->deserialise_file(std::forward<String>(filepath));
+        Impl::JsonDeserialiser(*this).deserialise_file(std::forward<String>(filepath));
     }
 };
 
@@ -170,7 +170,7 @@ template <typename T, typename MapStyle>
 struct MapDeserialiser
     : public JsonDeserialise::@LIB_ID@::Deserialisable<T>::template Style<MapStyle::value>::Type {
     using Base
-        = typename JsonDeserialise::V_ABCD_V::Deserialisable<T>::template Style<MapStyle::value>::Type;
+        = typename JsonDeserialise::@LIB_ID@::Deserialisable<T>::template Style<MapStyle::value>::Type;
     template <typename... Args>
     MapDeserialiser(MapStyle&, T& target, Args&&... args)
         : Base(std::forward<Args>(args)..., target) {}

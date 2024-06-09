@@ -14,7 +14,7 @@ enum class Trait : unsigned {
     OBJECT = 1,
     ARRAY = 2,
     FIELD = 4,
-    OPTIONAL = 8,
+    OPTION = 8,
 };
 
 enum class ArrayInsertWay : uint8_t {
@@ -176,9 +176,9 @@ struct Implementation {
     protected:
         DeserialisableBase(void* ptr, Trait _as = Trait::NUL) : data_ptr(ptr), info(_as) {}
         DeserialisableBase(void* ptr, StringConstRef name, bool optional = false)
-            : data_ptr(ptr), info(optional ? Trait::OPTIONAL : Trait::FIELD), identifier(name) {}
+            : data_ptr(ptr), info(optional ? Trait::OPTION : Trait::FIELD), identifier(name) {}
         DeserialisableBase(void* ptr, StringRvalueRef name, bool optional = false)
-            : data_ptr(ptr), info(optional ? Trait::OPTIONAL : Trait::FIELD),
+            : data_ptr(ptr), info(optional ? Trait::OPTION : Trait::FIELD),
               identifier(std::move(name)) {}
         DeserialisableBase(const void* ptr) : data_ptr(nullptr), info(ptr) {}
         DeserialisableBase(const void* ptr, StringConstRef name)
@@ -213,7 +213,7 @@ struct Implementation {
             throw std::ios_base::failure("JSON Structure Declaration Invalid!");
 #endif
         bool contain = Lib::exists(object, each.identifier);
-        if (!(contain || (unsigned(each.info.flag) & unsigned(Trait::OPTIONAL))))
+        if (!(contain || (unsigned(each.info.flag) & unsigned(Trait::OPTION))))
             throw std::ios_base::failure("JSON Structure Incompatible!");
         if (contain)
             static_cast<T&>(each).from_json(object[each.identifier]);
@@ -222,7 +222,7 @@ struct Implementation {
     template <typename T>
     inline static void insert_each(typename Lib::JsonObject& object,
                                    const DeserialisableBase& each) {
-        object.insert(each.identifier, static_cast<const T&>(each).to_json());
+        Lib::insert(object, each.identifier, static_cast<const T&>(each).to_json());
     }
 
     template <typename T>
@@ -296,7 +296,7 @@ struct Implementation {
             if (Lib::is_bool(json))
                 this->template value<Target>() = Lib::get_bool(json);
             else if (Lib::is_string(json)) {
-                auto str = Lib::get_string(json).toLower();
+                auto str = Lib::tolower(Lib::get_string(json));
                 if (str == "true")
                     this->template value<Target>() = true;
                 else if (str == "false")
@@ -305,7 +305,7 @@ struct Implementation {
                     this->template value<Target>() = true;
                 else if (str == "0")
                     this->template value<Target>() = false;
-                else if (str.isEmpty())
+                else if (Lib::empty_str(str))
                     this->template value<Target>() = false;
                 else
                     throw std::ios_base::failure("Type Unmatch!");
@@ -372,6 +372,52 @@ struct Implementation {
             return Lib::uint2json(this->template value<Target>());
         }
     };
+
+    template <>
+    struct Integer<true, 8> : public DeserialisableBaseHelper<int64_t> {
+        using Base = DeserialisableBaseHelper<int64_t>;
+        using Target = int64_t;
+
+        template <typename... Args>
+        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+        void from_json(const Json& json) {
+            if (Lib::is_number(json))
+                this->template value<Target>() = Lib::get_int64(json);
+            else if (Lib::is_string(json))
+                this->template value<Target>() = Lib::str2int64(Lib::get_string(json));
+            else if (Lib::is_null(json))
+                this->template value<Target>() = 0;
+            else
+                throw std::ios_base::failure("Type Unmatch!");
+        }
+        Json to_json() const {
+            return this->template value<Target>();
+        }
+    };
+
+    template <>
+    struct Integer<false, 8> : public DeserialisableBaseHelper<uint64_t> {
+        using Base = DeserialisableBaseHelper<uint64_t>;
+        using Target = uint64_t;
+
+        template <typename... Args>
+        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+        void from_json(const Json& json) {
+            if (Lib::is_number(json))
+                this->template value<Target>() = Lib::get_uint64(json);
+            else if (Lib::is_string(json))
+                this->template value<Target>() = Lib::str2uint64(Lib::get_string(json));
+            else if (Lib::is_null(json))
+                this->template value<Target>() = 0;
+            else
+                throw std::ios_base::failure("Type Unmatch!");
+        }
+        Json to_json() const {
+            return this->template value<Target>();
+        }
+    };    
 
     template <typename T>
     struct Real;
@@ -463,7 +509,7 @@ struct Implementation {
                 return this->template value<Target>() ? this->template value<Target>() : Json();
             else
                 return this->template value<Target>()
-                           ? StringConvertor<StringType>::deconvert(*this->template value<Target>())
+                           ? Json(StringConvertor<StringType>::deconvert(*this->template value<Target>()))
                            : Json();
         }
     };
@@ -857,8 +903,7 @@ struct Implementation {
                 throw std::ios_base::failure("Type Unmatch!");
             (deserialise_each<typename MemberInfo::Prototype>(
                  Lib::get_object(json),
-                 typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*
-                                                                      MemberInfo::member_ptr)),
+                 typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*MemberInfo::member_ptr, MemberInfo::optional)),
              ...);
         }
         Json to_json() const {
@@ -887,8 +932,7 @@ struct Implementation {
             Base::from_json(json);
             (deserialise_each<typename MemberInfo::Prototype>(
                  Lib::get_object(json),
-                 typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*
-                                                                      MemberInfo::member_ptr)),
+                 typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*MemberInfo::member_ptr, MemberInfo::optional)),
              ...);
         }
 

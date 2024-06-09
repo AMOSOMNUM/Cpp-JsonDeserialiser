@@ -27,7 +27,7 @@
     struct Customised<member_ptr> {                                                                \
         using Type = RegisteredExtension<member_ptr>;                                              \
     };
-#define register_object_member_info_style(member_ptr, style, ...)                              \
+#define register_object_member_info_style(member_ptr, style, ...)                                  \
     template <>                                                                                    \
     struct RegisteredStyleInfo<member_ptr>                                                         \
         : public Deserialisable<typename MemberPtrToType<member_ptr>::Type>::Style<(style)> {};    \
@@ -100,6 +100,8 @@
     (BOOST_PP_ENUM(BOOST_PP_TUPLE_SIZE((__VA_ARGS__)), declare_object_process_replace,             \
                    (object_type, __VA_ARGS__)))
 
+#define object_member_auto(x) object_member(#x, x)
+#define optional_object_member_auto(x) optional_object_member(#x, x)
 #define object_member(json_name, member_name) (normal, json_name, member_name, false, void)
 #define optional_object_member(json_name, member_name) (normal, json_name, member_name, true, void)
 #define object_member_with_named_extension(json_name, member_name, extension)                      \
@@ -120,6 +122,6 @@
     (serialise_only_extension, json_name, member_name, false, void, functor)
 #define optional_object_member_with_serialise_only_extension(json_name, member_name, functor)      \
     (serialise_only_extension, json_name, member_name, true, void, functor)
-#define object_member_with_map_style(json_name, member_name, style_name, ...)                           \
+#define object_member_with_map_style(json_name, member_name, style_name, ...)                      \
     (style, json_name, member_name, false, void, JsonDeserialise::MapStyle::style_name, ##__VA_ARGS__)
 #endif // JSON_DESERIALISER_GLOBAL_MACRO
