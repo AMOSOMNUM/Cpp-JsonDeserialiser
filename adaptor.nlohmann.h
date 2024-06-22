@@ -3,11 +3,12 @@
 
 #include "type_deduction.nlohmann.h"
 
-#include <nlohmann/json.hpp>
 #include <cstring>
 #include <fstream>
-#include <type_traits>
 #include <string_view>
+#include <type_traits>
+
+#include <nlohmann/json.hpp>
 
 namespace JsonDeserialise {
 struct NlohmannJsonLib {
@@ -22,6 +23,11 @@ struct NlohmannJsonLib {
 
     template <auto member_offset>
     using Customised = NlohmannJsonLibPrivate::Customised<member_offset>;
+
+    template <typename T>
+    struct StringConvertor {
+        static constexpr bool value = false;
+    };
 
     // Basic Types
 
@@ -127,40 +133,6 @@ struct NlohmannJsonLib {
         return str.empty();
     }
 
-    // String Convertors
-
-    template <typename T>
-    struct StringConvertor {
-        static constexpr bool value = false;
-    };
-    template <>
-    struct StringConvertor<char*> {
-        static constexpr bool value = true;
-        static inline char* convert(const String& str) {
-            std::string_view view{str};
-            const auto length = str.length();
-            char* des = new char[length + 1];
-            std::strncpy(des, view.data(), length);
-            des[length] = '\0';
-            return des;
-        }
-        static inline String deconvert(const char* src) {
-            return src;
-        }
-    };
-    template <>
-    struct StringConvertor<const char*> : public StringConvertor<char*> {};
-    template <>
-    struct StringConvertor<std::string> {
-        static constexpr bool value = true;
-        static inline const std::string& convert(const std::string& str) {
-            return str;
-        }
-        static inline const std::string& deconvert(const std::string& src) {
-            return src;
-        }
-    };
-
     // Implementations
 
     static Json parse(const String& json) {
@@ -171,7 +143,7 @@ struct NlohmannJsonLib {
         std::ifstream file(filepath);
         if (!file.is_open())
             throw std::ios_base::failure("Failed to Open File!");
-        std::string data {std::istreambuf_iterator(file), std::istreambuf_iterator<char>()};
+        std::string data{std::istreambuf_iterator(file), std::istreambuf_iterator<char>()};
         file.close();
         return parse(data);
     }
@@ -200,6 +172,37 @@ struct NlohmannJsonLib {
         auto size = length >= limit ? limit - 1 : length;
         std::strncpy(des, view.data(), size);
         des[size] = '\0';
+    }
+};
+
+// String Convertors
+
+template <>
+struct NlohmannJsonLib::StringConvertor<char*> {
+    static constexpr bool value = true;
+    static inline char* convert(const String& str) {
+        std::string_view view{str};
+        const auto length = str.length();
+        char* des = new char[length + 1];
+        std::strncpy(des, view.data(), length);
+        des[length] = '\0';
+        return des;
+    }
+    static inline String deconvert(const char* src) {
+        return src;
+    }
+};
+template <>
+struct NlohmannJsonLib::StringConvertor<const char*>
+    : public NlohmannJsonLib::StringConvertor<char*> {};
+template <>
+struct NlohmannJsonLib::StringConvertor<std::string> {
+    static constexpr bool value = true;
+    static inline const std::string& convert(const std::string& str) {
+        return str;
+    }
+    static inline const std::string& deconvert(const std::string& src) {
+        return src;
     }
 };
 

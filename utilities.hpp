@@ -23,13 +23,12 @@ struct MemberPtrToType<member_ptr, T ObjectType::*> {
 };
 
 template <typename Function>
-struct ArgTypeDeduction {
-    using Type = typename ArgTypeDeduction<decltype(&Function::operator())>::Type;
-};
+struct ArgTypeDeduction : public ArgTypeDeduction<decltype(&Function::operator())> {};
 
-template <typename R, class C, typename Arg>
-struct ArgTypeDeduction<R (C::*)(Arg) const> {
+template <typename R, typename C, typename Arg, typename... Args>
+struct ArgTypeDeduction<R (C::*)(Arg, Args...) const> {
     using Type = Arg;
+    using Return = R;
 };
 
 template <int... pack>
@@ -157,7 +156,8 @@ struct TypeTupleAlter;
 template <int n, typename Value, typename... Args>
 struct TypeTupleAlter<n, TypeTuple<Args...>, Value> {
     using Loc = typename TypeTupleFront<(n - 1), TypeTuple<Args...>>::Type;
-    using Type = typename TypeTupleMerge<typename Loc::Left,
+    using Type =
+        typename TypeTupleMerge<typename Loc::Left,
                                 typename TypeTupleAlter<0, typename Loc::Right, Value>::Type>::Type;
 };
 

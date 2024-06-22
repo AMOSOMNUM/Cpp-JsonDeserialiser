@@ -105,6 +105,52 @@ enum class MapStyle {
     OBJECT_ARRAY,
     PAIR_ARRAY,
 };
+template <typename MapTypeInfo, MapStyle style>
+struct MapStyleImpl;
+
+template <typename T, typename Nullable>
+struct NullableHandler;
+template <typename T>
+struct NullableHandler<T, std::optional<T>> {
+    inline static decltype(auto) convert(const T& value) {
+        return value;
+    }
+    constexpr inline static decltype(auto) make_empty() {
+        return std::nullopt;
+    }
+};
+template <typename T>
+struct NullableHandler<T, T*> {
+    inline static T* convert(T&& value) {
+        return new T(std::move(value));
+    }
+    constexpr inline static T* make_empty() {
+        return nullptr;
+    }
+};
+template <>
+struct NullableHandler<const char*, const char*> {
+    inline static const char* convert(const char* value) {
+        return value;
+    }
+    constexpr inline static const char* make_empty() {
+        return nullptr;
+    }
+};
+template <>
+struct NullableHandler<char*, char*> {
+    inline static char* convert(char* value) {
+        return value;
+    }
+    constexpr inline static char* make_empty() {
+        return nullptr;
+    }
+};
+
+template <typename Lib, bool sign, size_t size>
+struct IntegerImpl;
+template <typename Lib, typename T>
+struct RealImpl;
 
 template <typename Lib>
 struct Implementation {
@@ -121,45 +167,6 @@ struct Implementation {
 
     template <typename T>
     using StringConvertor = typename Lib::template StringConvertor<T>;
-
-    template <typename T, typename Nullable>
-    struct NullableHandler;
-    template <typename T>
-    struct NullableHandler<T, std::optional<T>> {
-        inline static decltype(auto) convert(const T& value) {
-            return value;
-        }
-        constexpr inline static decltype(auto) make_empty() {
-            return std::nullopt;
-        }
-    };
-    template <typename T>
-    struct NullableHandler<T, T*> {
-        inline static T* convert(T&& value) {
-            return new T(std::move(value));
-        }
-        constexpr inline static T* make_empty() {
-            return nullptr;
-        }
-    };
-    template <>
-    struct NullableHandler<const char*, const char*> {
-        inline static const char* convert(const char* value) {
-            return value;
-        }
-        constexpr inline static const char* make_empty() {
-            return nullptr;
-        }
-    };
-    template <>
-    struct NullableHandler<char*, char*> {
-        inline static char* convert(char* value) {
-            return value;
-        }
-        constexpr inline static char* make_empty() {
-            return nullptr;
-        }
-    };
 
     class DeserialisableBase {
     public:
@@ -325,123 +332,10 @@ struct Implementation {
     };
 
     template <bool sign, size_t size>
-    struct Integer;
-
-    template <>
-    struct Integer<true, sizeof(int)> : public DeserialisableBaseHelper<int> {
-        using Base = DeserialisableBaseHelper<int>;
-        using Target = int;
-
-        template <typename... Args>
-        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
-
-        void from_json(const Json& json) {
-            if (Lib::is_number(json))
-                this->template value<Target>() = Lib::get_int(json);
-            else if (Lib::is_string(json))
-                this->template value<Target>() = Lib::str2int(Lib::get_string(json));
-            else if (Lib::is_null(json))
-                this->template value<Target>() = 0;
-            else
-                throw std::ios_base::failure("Type Unmatch!");
-        }
-        Json to_json() const {
-            return this->template value<Target>();
-        }
-    };
-
-    template <>
-    struct Integer<false, sizeof(unsigned)> : public DeserialisableBaseHelper<unsigned> {
-        using Base = DeserialisableBaseHelper<unsigned>;
-        using Target = unsigned;
-
-        template <typename... Args>
-        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
-
-        void from_json(const Json& json) {
-            if (Lib::is_number(json))
-                this->template value<Target>() = Lib::get_uint(json);
-            else if (Lib::is_string(json))
-                this->template value<Target>() = Lib::str2uint(Lib::get_string(json));
-            else if (Lib::is_null(json))
-                this->template value<Target>() = 0;
-            else
-                throw std::ios_base::failure("Type Unmatch!");
-        }
-        Json to_json() const {
-            return Lib::uint2json(this->template value<Target>());
-        }
-    };
-
-    template <>
-    struct Integer<true, 8> : public DeserialisableBaseHelper<int64_t> {
-        using Base = DeserialisableBaseHelper<int64_t>;
-        using Target = int64_t;
-
-        template <typename... Args>
-        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
-
-        void from_json(const Json& json) {
-            if (Lib::is_number(json))
-                this->template value<Target>() = Lib::get_int64(json);
-            else if (Lib::is_string(json))
-                this->template value<Target>() = Lib::str2int64(Lib::get_string(json));
-            else if (Lib::is_null(json))
-                this->template value<Target>() = 0;
-            else
-                throw std::ios_base::failure("Type Unmatch!");
-        }
-        Json to_json() const {
-            return this->template value<Target>();
-        }
-    };
-
-    template <>
-    struct Integer<false, 8> : public DeserialisableBaseHelper<uint64_t> {
-        using Base = DeserialisableBaseHelper<uint64_t>;
-        using Target = uint64_t;
-
-        template <typename... Args>
-        Integer(Args&&... args) : Base(std::forward<Args>(args)...) {}
-
-        void from_json(const Json& json) {
-            if (Lib::is_number(json))
-                this->template value<Target>() = Lib::get_uint64(json);
-            else if (Lib::is_string(json))
-                this->template value<Target>() = Lib::str2uint64(Lib::get_string(json));
-            else if (Lib::is_null(json))
-                this->template value<Target>() = 0;
-            else
-                throw std::ios_base::failure("Type Unmatch!");
-        }
-        Json to_json() const {
-            return this->template value<Target>();
-        }
-    };    
+    using Integer = IntegerImpl<Lib, sign, size>;
 
     template <typename T>
-    struct Real;
-
-    template <>
-    struct Real<double> : public DeserialisableBaseHelper<double> {
-        using Base = DeserialisableBaseHelper<double>;
-        using Target = double;
-
-        template <typename... Args>
-        Real(Args&&... args) : Base(std::forward<Args>(args)...) {}
-
-        void from_json(const Json& json) {
-            if (Lib::is_number(json))
-                this->template value<Target>() = Lib::get_double(json);
-            else if (Lib::is_string(json))
-                this->template value<Target>() = Lib::str2double(Lib::get_string(json));
-            else
-                throw std::ios_base::failure("Type Unmatch!");
-        }
-        Json to_json() const {
-            return this->template value<Target>();
-        }
-    };
+    using Real = RealImpl<Lib, T>;
 
     template <typename T>
     struct String : public DeserialisableBaseHelper<T> {
@@ -508,9 +402,9 @@ struct Implementation {
             if constexpr (std::is_same_v<std::remove_cv_t<std::remove_pointer_t<StringType>>, char>)
                 return this->template value<Target>() ? this->template value<Target>() : Json();
             else
-                return this->template value<Target>()
-                           ? Json(StringConvertor<StringType>::deconvert(*this->template value<Target>()))
-                           : Json();
+                return this->template value<Target>() ? Json(StringConvertor<StringType>::deconvert(
+                                                            *this->template value<Target>()))
+                                                      : Json();
         }
     };
 
@@ -903,7 +797,9 @@ struct Implementation {
                 throw std::ios_base::failure("Type Unmatch!");
             (deserialise_each<typename MemberInfo::Prototype>(
                  Lib::get_object(json),
-                 typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*MemberInfo::member_ptr, MemberInfo::optional)),
+                 typename MemberInfo::Prototype(
+                     MemberInfo::name, this->template value<Target>().*MemberInfo::member_ptr,
+                     MemberInfo::optional)),
              ...);
         }
         Json to_json() const {
@@ -932,7 +828,9 @@ struct Implementation {
             Base::from_json(json);
             (deserialise_each<typename MemberInfo::Prototype>(
                  Lib::get_object(json),
-                 typename MemberInfo::Prototype(MemberInfo::name, this->template value<Target>().*MemberInfo::member_ptr, MemberInfo::optional)),
+                 typename MemberInfo::Prototype(
+                     MemberInfo::name, this->template value<Target>().*MemberInfo::member_ptr,
+                     MemberInfo::optional)),
              ...);
         }
 
@@ -1113,129 +1011,108 @@ struct Implementation {
         }
     };
 
-    template <typename Des, typename ConvertFunctor,
-              typename BasicType = typename ArgTypeDeduction<decltype(std::function(
-                  std::declval<ConvertFunctor>()))>::Type>
-    struct DeserialiseOnlyConvertor
-        : public decltype(std::function(std::declval<ConvertFunctor>())) {
-        using Type = BasicType;
-        using Target = std::decay_t<Des>;
-        using Source = std::decay_t<BasicType>;
-        using FunctionType = decltype(std::function(std::declval<ConvertFunctor>()));
+    template <typename Functor>
+    struct DeserialiseOnlyConvertor : public decltype(std::function(std::declval<Functor>())) {
+        using FunctionType = decltype(std::function(std::declval<Functor>()));
+        using Type = std::decay_t<typename ArgTypeDeduction<FunctionType>::Type>;
+        using Source = std::decay_t<typename ArgTypeDeduction<FunctionType>::Return>;
 
-        template <typename T>
-        DeserialiseOnlyConvertor(T&& convertor) : FunctionType(convertor) {}
+        DeserialiseOnlyConvertor(Functor && convertor)
+            : FunctionType(std::forward<Functor>(convertor)) {}
     };
 
-    template <typename Convertor>
-    struct DeserialiseOnlyExtension : public DeserialisableBaseHelper<typename Convertor::Target> {
-        using Target = typename Convertor::Target;
-        using Source = typename Convertor::Source;
+    template <typename Functor>
+    struct DeserialiseOnlyExtension
+        : public DeserialisableBaseHelper<typename DeserialiseOnlyConvertor<Functor>::Source> {
+        using Convertor = DeserialiseOnlyConvertor<Functor>;
+        using Target = typename Convertor::Source;
         using Base = DeserialisableBaseHelper<Target>;
-        using Prototype = DeserialisableType<typename Convertor::Type>;
+        using Type = typename Convertor::Type;
+        using Prototype = DeserialisableType<Type>;
 
-        template <typename T, typename... Args>
-        DeserialiseOnlyExtension(T&& convertor, Args&&... args)
-            : Base(std::forward<Args>(args)...), convertor(std::forward<T>(convertor)) {}
+        const Convertor convertor;
 
-        const std::decay_t<Convertor> convertor;
+        template <typename... Args>
+        DeserialiseOnlyExtension(Functor&& convertor, Args&&... args)
+            : Base(std::forward<Args>(args)...), convertor(std::forward<Functor>(convertor)) {}
 
         void from_json(const Json& json) {
-            Source tmp;
+            Type tmp;
             Prototype(tmp).from_json(json);
             this->template value<Target>() = convertor(tmp);
         }
     };
-    template <typename Des, typename ConvertFunctor>
-    DeserialiseOnlyExtension(ConvertFunctor&&, Des&)
-        -> DeserialiseOnlyExtension<DeserialiseOnlyConvertor<Des, ConvertFunctor>>;
-    template <typename Des, typename ConvertFunctor, typename String>
-    DeserialiseOnlyExtension(ConvertFunctor&&, String&&, Des&, bool)
-        -> DeserialiseOnlyExtension<DeserialiseOnlyConvertor<Des, ConvertFunctor>>;
 
-    template <typename Des, typename ConvertFunctor,
-              typename BasicType = decltype(std::declval<ConvertFunctor>()(std::declval<Des>()))>
-    struct SerialiseOnlyConvertor : public decltype(std::function(std::declval<ConvertFunctor>())) {
-        using Type = BasicType;
-        using Target = std::decay_t<Des>;
-        using Source = std::decay_t<BasicType>;
-        using FunctionType = decltype(std::function(std::declval<ConvertFunctor>()));
+    template <typename Functor>
+    struct SerialiseOnlyConvertor : public decltype(std::function(std::declval<Functor>())) {
+        using FunctionType = decltype(std::function(std::declval<Functor>()));
+        using Type = std::decay_t<typename ArgTypeDeduction<FunctionType>::Return>;
+        using Source = std::decay_t<typename ArgTypeDeduction<FunctionType>::Type>;
 
-        template <typename T>
-        SerialiseOnlyConvertor(T&& convertor) : FunctionType(convertor) {}
+        SerialiseOnlyConvertor(Functor && convertor) : FunctionType(convertor) {}
     };
 
-    template <typename Convertor>
-    struct SerialiseOnlyExtension : public DeserialisableBaseHelper<typename Convertor::Target> {
-        using Target = typename Convertor::Target;
-        using Source = typename Convertor::Source;
+    template <typename Functor>
+    struct SerialiseOnlyExtension
+        : public DeserialisableBaseHelper<typename SerialiseOnlyConvertor<Functor>::Source> {
+        using Convertor = SerialiseOnlyConvertor<Functor>;
+        using Target = typename Convertor::Source;
         using Base = DeserialisableBaseHelper<Target>;
-        using Prototype = DeserialisableType<typename Convertor::Type>;
+        using Type = typename Convertor::Type;
+        using Prototype = DeserialisableType<Type>;
 
-        template <typename T, typename... Args>
-        SerialiseOnlyExtension(T&& convertor, Args&&... args)
-            : Base(std::forward<Args>(args)...), convertor(std::forward<T>(convertor)) {}
+        const Convertor convertor;
 
-        const std::decay_t<Convertor> convertor;
+        template <typename... Args>
+        SerialiseOnlyExtension(Functor&& convertor, Args&&... args)
+            : Base(std::forward<Args>(args)...), convertor(std::forward<Functor>(convertor)) {}
 
         Json to_json() const {
             auto tmp = convertor(this->template value<Target>());
             return Prototype(tmp).to_json();
         }
     };
-    template <typename Des, typename ConvertFunctor>
-    SerialiseOnlyExtension(ConvertFunctor&&, const Des&)
-        -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
-    template <typename Des, typename ConvertFunctor, typename String>
-    SerialiseOnlyExtension(ConvertFunctor&&, String&&, const Des&)
-        -> SerialiseOnlyExtension<SerialiseOnlyConvertor<Des, ConvertFunctor>>;
 
-    template <typename Des, typename ConvertFunctor = Des(const Json&),
-              typename DeconvertFunctor = Json(const Des&),
-              typename BasicType = decltype(std::declval<DeconvertFunctor>()(std::declval<Des>()))>
+    template <typename ConvertFunctor, typename DeconvertFunctor>
     struct Convertor {
-        using Type = BasicType;
-        using Target = std::decay_t<Des>;
-        using Source = std::decay_t<BasicType>;
-        DeserialiseOnlyConvertor<Des, ConvertFunctor, BasicType> convertor;
-        SerialiseOnlyConvertor<Des, DeconvertFunctor, BasicType> deconvertor;
+        using Source = std::decay_t<typename DeserialiseOnlyConvertor<ConvertFunctor>::Source>;
+        using Type = std::decay_t<typename SerialiseOnlyConvertor<DeconvertFunctor>::Type>;
 
-        template <typename U, typename V>
-        Convertor(U&& convertor, V&& deconvertor)
-            : convertor(std::forward<U>(convertor)), deconvertor(std::forward<V>(deconvertor)) {}
+        DeserialiseOnlyConvertor<ConvertFunctor> convertor;
+        SerialiseOnlyConvertor<DeconvertFunctor> deconvertor;
+
+        Convertor(DeconvertFunctor&& convertor, DeconvertFunctor&& deconvertor)
+            : convertor(std::forward<DeconvertFunctor>(convertor)),
+              deconvertor(std::forward<DeconvertFunctor>(deconvertor)) {}
     };
 
-    template <typename Convertor>
-    struct Extension : public DeserialisableBaseHelper<typename Convertor::Target> {
-        using Type = DeserialisableType<typename Convertor::Type>;
-        using Target = typename Convertor::Target;
-        using Source = typename Convertor::Source;
-        using Base = DeserialisableBaseHelper<typename Convertor::Target>;
+    template <typename ConvertFunctor, typename DeconvertFunctor>
+    struct Extension : public DeserialisableBaseHelper<
+                           typename Convertor<ConvertFunctor, DeconvertFunctor>::Target> {
+        using Convertor = Convertor<ConvertFunctor, DeconvertFunctor>;
+        using Target = typename Convertor::Source;
+        using Base = DeserialisableBaseHelper<Target>;
+        using Type = typename Convertor::Type;
+        using Prototype = DeserialisableType<Type>;
 
-        template <typename U, typename V, typename... Args>
-        Extension(U&& convertor, V&& deconvertor, Args&&... args)
+        const Convertor convertor;
+
+        template <typename... Args>
+        Extension(ConvertFunctor&& convertor, DeconvertFunctor&& deconvertor, Args&&... args)
             : Base(std::forward<Args>(args)...),
-              convertor(std::forward<U>(convertor), std::forward<V>(deconvertor)) {}
-
-        const std::decay_t<Convertor> convertor;
+              convertor(std::forward<ConvertFunctor>(convertor),
+                        std::forward<DeconvertFunctor>(deconvertor)) {}
 
         void from_json(const Json& json) {
-            Source tmp;
-            Type(tmp).from_json(json);
+            Type tmp;
+            Prototype(tmp).from_json(json);
             this->template value<Target>() = convertor.convertor(tmp);
         }
         Json to_json() const {
             auto tmp = convertor.deconvertor(this->template value<Target>());
-            return Type(tmp).to_json();
+            return Prototype(tmp).to_json();
         }
     };
-
-    template <typename Des, typename ConvertFunctor, typename DeconvertFunctor>
-    Extension(ConvertFunctor&&, DeconvertFunctor&&, Des&)
-        -> Extension<Convertor<Des, ConvertFunctor, DeconvertFunctor>>;
-    template <typename Des, typename ConvertFunctor, typename DeconvertFunctor, typename String>
-    Extension(ConvertFunctor&&, DeconvertFunctor&&, String&&, Des&, bool)
-        -> Extension<Convertor<Des, ConvertFunctor, DeconvertFunctor>>;
 
     template <typename Needed, typename Given,
               typename Result = typename TypeTupleMap<Needed, Lib::template Deserialisable>::Type>
@@ -1338,26 +1215,147 @@ struct Implementation {
         using Type = _STRING_MAP_;
 
         template <MapStyle style>
-        struct Style;
-
-        template <>
-        struct Style<MapStyle::STRING_MAP> {
-            using Type = _STRING_MAP_;
-            static constexpr int argc = 0;
-        };
-
-        template <>
-        struct Style<MapStyle::OBJECT_ARRAY> {
-            using Type = _OBJECT_ARRAY_;
-            static constexpr int argc = 1;
-        };
-
-        template <>
-        struct Style<MapStyle::PAIR_ARRAY> {
-            using Type = _PAIR_ARRAY_;
-            static constexpr int argc = 2;
-        };
+        using Style = MapStyleImpl<MapTypeInfo, style>;
     };
+};
+
+template <typename Lib, typename T>
+using DeserialisableBaseHelper = typename Implementation<Lib>::template DeserialisableBaseHelper<T>;
+
+template <typename Lib>
+struct IntegerImpl<Lib, true, 4> : public DeserialisableBaseHelper<Lib, int32_t> {
+    using Base = DeserialisableBaseHelper<Lib, int32_t>;
+    using Target = int32_t;
+    using Json = typename Implementation<Lib>::Json;
+
+    template <typename... Args>
+    IntegerImpl(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+    void from_json(const Json& json) {
+        if (Lib::is_number(json))
+            this->template value<Target>() = Lib::get_int(json);
+        else if (Lib::is_string(json))
+            this->template value<Target>() = Lib::str2int(Lib::get_string(json));
+        else if (Lib::is_null(json))
+            this->template value<Target>() = 0;
+        else
+            throw std::ios_base::failure("Type Unmatch!");
+    }
+    Json to_json() const {
+        return this->template value<Target>();
+    }
+};
+
+template <typename Lib>
+struct IntegerImpl<Lib, false, 4> : public DeserialisableBaseHelper<Lib, uint32_t> {
+    using Base = DeserialisableBaseHelper<Lib, uint32_t>;
+    using Target = uint32_t;
+    using Json = typename Implementation<Lib>::Json;
+
+    template <typename... Args>
+    IntegerImpl(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+    void from_json(const Json& json) {
+        if (Lib::is_number(json))
+            this->template value<Target>() = Lib::get_uint(json);
+        else if (Lib::is_string(json))
+            this->template value<Target>() = Lib::str2uint(Lib::get_string(json));
+        else if (Lib::is_null(json))
+            this->template value<Target>() = 0;
+        else
+            throw std::ios_base::failure("Type Unmatch!");
+    }
+    Json to_json() const {
+        return Lib::uint2json(this->template value<Target>());
+    }
+};
+
+template <typename Lib>
+struct IntegerImpl<Lib, true, 8> : public DeserialisableBaseHelper<Lib, int64_t> {
+    using Base = DeserialisableBaseHelper<Lib, int64_t>;
+    using Target = int64_t;
+    using Json = typename Implementation<Lib>::Json;
+
+    template <typename... Args>
+    IntegerImpl(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+    void from_json(const Json& json) {
+        if (Lib::is_number(json))
+            this->template value<Target>() = Lib::get_int64(json);
+        else if (Lib::is_string(json))
+            this->template value<Target>() = Lib::str2int64(Lib::get_string(json));
+        else if (Lib::is_null(json))
+            this->template value<Target>() = 0;
+        else
+            throw std::ios_base::failure("Type Unmatch!");
+    }
+    Json to_json() const {
+        return this->template value<Target>();
+    }
+};
+
+template <typename Lib>
+struct IntegerImpl<Lib, false, 8> : public DeserialisableBaseHelper<Lib, uint64_t> {
+    using Base = DeserialisableBaseHelper<Lib, uint64_t>;
+    using Target = uint64_t;
+    using Json = typename Implementation<Lib>::Json;
+
+    template <typename... Args>
+    IntegerImpl(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+    void from_json(const Json& json) {
+        if (Lib::is_number(json))
+            this->template value<Target>() = Lib::get_uint64(json);
+        else if (Lib::is_string(json))
+            this->template value<Target>() = Lib::str2uint64(Lib::get_string(json));
+        else if (Lib::is_null(json))
+            this->template value<Target>() = 0;
+        else
+            throw std::ios_base::failure("Type Unmatch!");
+    }
+    Json to_json() const {
+        return this->template value<Target>();
+    }
+};
+
+template <typename Lib>
+struct RealImpl<Lib, double> : public DeserialisableBaseHelper<Lib, double> {
+    using Base = DeserialisableBaseHelper<Lib, double>;
+    using Target = double;
+    using Json = typename Implementation<Lib>::Json;
+
+    template <typename... Args>
+    RealImpl(Args&&... args) : Base(std::forward<Args>(args)...) {}
+
+    void from_json(const Json& json) {
+        if (Lib::is_number(json))
+            this->template value<Target>() = Lib::get_double(json);
+        else if (Lib::is_string(json))
+            this->template value<Target>() = Lib::str2double(Lib::get_string(json));
+        else
+            throw std::ios_base::failure("Type Unmatch!");
+    }
+    Json to_json() const {
+        return this->template value<Target>();
+    }
+};
+
+template <typename Info>
+struct MapStyleImpl<Info, MapStyle::STRING_MAP> {
+    using Type = typename Info::_STRING_MAP_;
+    static constexpr int argc = 0;
+};
+
+template <typename Info>
+struct MapStyleImpl<Info, MapStyle::OBJECT_ARRAY> {
+    using Type = typename Info::_OBJECT_ARRAY_;
+    static constexpr int argc = 1;
+};
+
+template <typename Info>
+struct MapStyleImpl<Info, MapStyle::PAIR_ARRAY> {
+    using Type = typename Info::_PAIR_ARRAY_;
+    static constexpr int argc = 2;
 };
 
 } // namespace JsonDeserialise

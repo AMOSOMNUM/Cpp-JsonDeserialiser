@@ -102,11 +102,11 @@ struct ExtensionDeserialiser
     ExtensionDeserialiser(T& target, U&& f1, V&& f2)
         : Base(std::forward<U>(f1), std::forward<V>(f2), target) {}
 };
-template <typename T>
-struct Field<Impl::Extension<T>> : public Impl::Extension<T> {
-    using Base = Impl::Extension<T>;
+template <typename T1, typename T2>
+struct Field<Impl::Extension<T1, T2>> : public Impl::Extension<T1, T2> {
+    using Base = Impl::Extension<T1, T2>;
     template <typename String, typename U, typename V>
-    Field(Extension_t&, String&& key, T& target, U&& f1, V&& f2, bool optional = false)
+    Field(Extension_t&, String&& key, typename Base::Target& target, U&& f1, V&& f2, bool optional = false)
         : Base(std::forward<U>(f1), std::forward<V>(f2), std::forward<String>(key), target,
                optional) {}
 };
@@ -124,10 +124,10 @@ struct OneWayExtensionDeserialiser
         : Base(std::forward<F>(f), target) {}
 };
 template <typename T>
-struct Field<Impl::DeserialiseOnlyExtension<T>> : public Impl::Extension<T> {
+struct Field<Impl::DeserialiseOnlyExtension<T>> : public Impl::DeserialiseOnlyExtension<T> {
     using Base = Impl::DeserialiseOnlyExtension<T>;
     template <typename String, typename F>
-    Field(DeserialiseOnlyExtension_t&, String&& key, T& target, F&& f, bool optional = false)
+    Field(DeserialiseOnlyExtension_t&, String&& key, typename Base::Target& target, F&& f, bool optional = false)
         : Base(std::forward<F>(f), std::forward<String>(key), target,
                optional) {}
 };
@@ -145,10 +145,10 @@ struct OneWayExtensionSerialiser
         : Base(std::forward<F>(f), target) {}
 };
 template <typename T>
-struct ConstField<Impl::SerialiseOnlyExtension<T>> : public Impl::Extension<T> {
+struct ConstField<Impl::SerialiseOnlyExtension<T>> : public Impl::SerialiseOnlyExtension<T> {
     using Base = Impl::SerialiseOnlyExtension<T>;
     template <typename String, typename F>
-    ConstField(SerialiseOnlyExtension_t&, String&& key, const T& target, F&& f,
+    ConstField(SerialiseOnlyExtension_t&, String&& key, const typename Base::Target& target, F&& f,
                bool optional = false)
         : Base(std::forward<F>(f), std::forward<String>(key), target, optional) {}
 };

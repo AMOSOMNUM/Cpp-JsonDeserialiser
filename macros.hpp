@@ -48,32 +48,27 @@
                                                 typename MemberPtrToType<member_ptr>::Type);       \
     inline static auto f1 = functor1;                                                              \
     inline static auto f2 = functor2;                                                              \
-    using ConvertorInfo =                                                                          \
-        Impl::Convertor<typename MemberPtrToType<member_ptr>::Type, decltype(f1), decltype(f2)>;   \
-    using Source = typename ConvertorInfo::Source;                                                 \
-    using Type = typename Deserialisable<typename ConvertorInfo::Type>::Type;                      \
+    using ConvertorInfo = Impl::Convertor<decltype(f1), decltype(f2)>;                             \
+    using Source = typename ConvertorInfo::Type;                                                   \
     void from_json(const Impl::Json& json) {                                                       \
         Source tmp;                                                                                \
-        Type(tmp).from_json(json);                                                                 \
+        Deserialisable<Source>::Type(tmp).from_json(json);                                         \
         this->template value<Target>() = f1(tmp);                                                  \
     }                                                                                              \
     Impl::Json to_json() const {                                                                   \
         auto tmp = f2(this->template value<Target>());                                             \
-        return Type(tmp).to_json();                                                                \
+        return Deserialisable<Source>::Type(tmp).to_json();                                        \
     }                                                                                              \
     register_object_member_info_extension_end(member_ptr);
 #define register_object_member_info_deserialise_only_extension(member_ptr, functor)                \
     register_object_member_info_extension_begin(member_ptr,                                        \
                                                 typename MemberPtrToType<member_ptr>::Type);       \
     inline static auto f = functor;                                                                \
-    using ConvertorInfo =                                                                          \
-        Impl::DeserialiseOnlyConvertor<typename MemberPtrToType<member_ptr>::Type,                 \
-                                       decltype(functor)>;                                         \
-    using Source = typename ConvertorInfo::Source;                                                 \
-    using Type = typename Deserialisable<typename ConvertorInfo::Type>::Type;                      \
+    using ConvertorInfo = Impl::DeserialiseOnlyConvertor<decltype(functor)>;                       \
+    using Source = typename ConvertorInfo::Type;                                                   \
     void from_json(const Impl::Json& json) {                                                       \
         Source tmp;                                                                                \
-        Type(tmp).from_json(json);                                                                 \
+        Deserialisable<Source>::Type(tmp).from_json(json);                                         \
         this->template value<Target>() = f(tmp);                                                   \
     }                                                                                              \
     register_object_member_info_extension_end(member_ptr);

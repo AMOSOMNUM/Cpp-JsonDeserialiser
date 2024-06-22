@@ -25,6 +25,11 @@ struct QtJsonLib {
     template <auto member_offset>
     using Customised = QtJsonLibPrivate::Customised<member_offset>;
 
+    template <typename T>
+    struct StringConvertor {
+        static constexpr bool value = false;
+    };
+
     // Basic Types
 
     using String = QString;
@@ -119,67 +124,13 @@ struct QtJsonLib {
             throw std::ios_base::failure("Type Unmatch!");
         return result;
     }
-    
+
     inline static String tolower(const String& str) {
         return str.toLower();
     }
     inline static bool empty_str(const String& str) {
         return str.isEmpty();
     }
-
-    // String Convertors
-
-    template <typename T>
-    struct StringConvertor {
-        static constexpr bool value = false;
-    };
-    template <>
-    struct StringConvertor<char*> {
-        static constexpr bool value = true;
-        static inline char* convert(const String& str) {
-            const auto& src = str.toUtf8();
-            const auto length = src.length();
-            char* des = new char[length + 1];
-            std::strncpy(des, src.constData(), length);
-            des[length] = '\0';
-            return des;
-        }
-        static inline String deconvert(const char* src) {
-            return src;
-        }
-    };
-    template <>
-    struct StringConvertor<const char*> : public StringConvertor<char*> {};
-    template <>
-    struct StringConvertor<QString> {
-        static constexpr bool value = true;
-        static inline const QString& convert(const String& str) {
-            return str;
-        }
-        static inline const String& deconvert(const QString& src) {
-            return src;
-        }
-    };
-    template <>
-    struct StringConvertor<std::string> {
-        static constexpr bool value = true;
-        static inline std::string convert(const String& str) {
-            return str.toStdString();
-        }
-        static inline String deconvert(const std::string& src) {
-            return QString::fromStdString(src);
-        }
-    };
-    template <>
-    struct StringConvertor<QByteArray> {
-        static constexpr bool value = true;
-        static inline QByteArray convert(const String& str) {
-            return str.toUtf8();
-        }
-        static inline String deconvert(const QByteArray& src) {
-            return QString::fromUtf8(src);
-        }
-    };
 
     // Implementations
 
@@ -234,6 +185,56 @@ struct QtJsonLib {
         auto size = length >= limit ? limit - 1 : length;
         std::strncpy(des, c_str, size);
         des[size] = '\0';
+    }
+};
+
+// String Convertors
+
+template <>
+struct QtJsonLib::StringConvertor<char*> {
+    static constexpr bool value = true;
+    static inline char* convert(const String& str) {
+        const auto& src = str.toUtf8();
+        const auto length = src.length();
+        char* des = new char[length + 1];
+        std::strncpy(des, src.constData(), length);
+        des[length] = '\0';
+        return des;
+    }
+    static inline String deconvert(const char* src) {
+        return src;
+    }
+};
+template <>
+struct QtJsonLib::StringConvertor<const char*> : public QtJsonLib::StringConvertor<char*> {};
+template <>
+struct QtJsonLib::StringConvertor<QString> {
+    static constexpr bool value = true;
+    static inline const QString& convert(const String& str) {
+        return str;
+    }
+    static inline const String& deconvert(const QString& src) {
+        return src;
+    }
+};
+template <>
+struct QtJsonLib::StringConvertor<std::string> {
+    static constexpr bool value = true;
+    static inline std::string convert(const String& str) {
+        return str.toStdString();
+    }
+    static inline String deconvert(const std::string& src) {
+        return QString::fromStdString(src);
+    }
+};
+template <>
+struct QtJsonLib::StringConvertor<QByteArray> {
+    static constexpr bool value = true;
+    static inline QByteArray convert(const String& str) {
+        return str.toUtf8();
+    }
+    static inline String deconvert(const QByteArray& src) {
+        return QString::fromUtf8(src);
     }
 };
 
