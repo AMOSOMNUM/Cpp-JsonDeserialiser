@@ -68,40 +68,8 @@
 #cmakedefine JSON_DESERIALISER_DEFAULT_MODE
 #ifdef JSON_DESERIALISER_DEFAULT_MODE
 
-// Local
-
-#define declare_top_deserialiser(data_name, var_name)                                              \
-    @lib@_declare_top_deserialiser(data_name, var_name)
-#define declare_deserialiser(json_name, data_name, var_name)                                       \
-    @lib@_declare_deserialiser(json_name, data_name, var_name)
-#define declare_top_serialiser(data_name, var_name)                                                \
-    @lib@_declare_top_serialiser(data_name, var_name)
-#define declare_serialiser(json_name, data_name, var_name)                                         \
-    @lib@_declare_serialiser(json_name, data_name, var_name)
-#define declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor)     \
-    @lib@_declare_extension_deserialiser(json_name, data_name, var_name, convertor, deconvertor)
-#define declare_one_way_extension_deserialiser(json_name, data_name, var_name, convertor)    \
-    @lib@_declare_one_way_extension_deserialiser(json_name, data_name, var_name, convertor)
-#define declare_one_way_extension_serialiser(json_name, data_name, var_name, deconvertor)    \
-    @lib@_declare_one_way_extension_serialiser(json_name, data_name, var_name, deconvertor)
-#define declare_top_map_deserialiser(data_name, var_name, style, ...)                              \
-    @lib@_declare_top_map_deserialiser(data_name, var_name, style, ##__VA_ARGS__)
-#define declare_map_deserialiser(json_name, data_name, key_name, var_name, style, ...)             \
-    @lib@_declare_map_deserialiser(json_name, data_name, key_name, var_name, style, ##__VA_ARGS__)
-#define declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)                 \
-    @lib@_declare_top_pair_deserialiser(json_name1, json_name2, data_name, var_name)
-#define declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)          \
-    @lib@_declare_pair_deserialiser(json_name, json_name1, json_name2, data_name, var_name)
-#define declare_top_array_of_object_deserialiser(data_name, var_name, object_type, ...)            \
-    @lib@_declare_top_array_of_object_deserialiser(data_name, var_name, object_type, __VA_ARGS__)
-#define declare_array_of_object_deserialiser(json_name, data_name, var_name, object_type, ...)     \
-    @lib@_declare_array_of_object_deserialiser(json_name, data_name, var_name, object_type,        \
-                                               __VA_ARGS__)
 #define array_field(object_type, json_name, member_name)                                           \
     @lib@_array_field(object_type, json_name, member_name)
-
-// Global
-
 #define declare_object(object_type, ...) @lib@_declare_object(object_type, __VA_ARGS__)
 #define declare_class_with_json_constructor_and_serialiser(object_type)                            \
     @lib@_declare_class_with_json_constructor_and_serialiser(object_type)
@@ -114,7 +82,7 @@
     @lib@_declare_default_extension(target_type, convertor, deconvertor)
 #define declare_named_extension(name, target_type, convertor, deconvertor)                         \
     @lib@_declare_named_extension(name, target_type, convertor, deconvertor)
-
+#undef JSON_DESERIALISER_DEFAULT_MODE
 #endif // JSON_DESERIALISER_DEFAULT_MODE
 
 #endif // JSON_DESERIALISER_@LIB_ID@PrivateMACROS

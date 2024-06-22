@@ -24,7 +24,7 @@ struct Deserialiser : public Impl::DeserialisableType<T> {
 
     template <typename String>
     inline void from_json_string(String&& str) {
-        Impl::JsonDeserialiser(*this).deserialise(std::forward<String>(str));
+        Impl::JsonDeserialiser(*this).deserialise_string(std::forward<String>(str));
     }
 
     template <typename String>

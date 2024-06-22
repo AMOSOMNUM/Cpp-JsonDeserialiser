@@ -240,7 +240,7 @@ struct Implementation {
         inline void deserialise_file(StringConstRef filepath) {
             deserialise(Lib::parse_file(filepath));
         }
-        inline void deserialise(typename Lib::StringView json) {
+        inline void deserialise_string(typename Lib::StringView json) {
             deserialise(Lib::parse(json));
         }
         inline void serialise_to_file(StringConstRef filepath, bool compress = false) const {

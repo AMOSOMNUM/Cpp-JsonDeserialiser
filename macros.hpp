@@ -11,18 +11,16 @@
 #define JSON_DESERIALISER_MACRO_WRAP_0(x) x
 #define JSON_DESERIALISER_MACRO_WRAP_1(x) x
 
-#define register_object_member_info_extension_(base, member_ptr, ...)                              \
+#define register_object_member_info_extension_begin(member_ptr, type)                              \
     template <>                                                                                    \
-    struct RegisteredExtensionBase<member_ptr> {                                                   \
-        using Type = decltype(Impl::base(                                                          \
-            __VA_ARGS__, *((typename MemberPtrToType<member_ptr>::Type*)nullptr)));                \
-    };                                                                                             \
-    template <>                                                                                    \
-    struct RegisteredExtension<member_ptr> : public RegisteredExtensionBase<member_ptr>::Type {    \
-        using Base = typename RegisteredExtensionBase<member_ptr>::Type;                           \
+    struct RegisteredExtension<member_ptr> : public Impl::DeserialisableBaseHelper<type> {         \
+        using Base = Impl::DeserialisableBaseHelper<type>;                                         \
+        using Target = type;                                                                       \
         template <typename... Args>                                                                \
-        RegisteredExtension(Args&&... args) : Base(__VA_ARGS__, std::forward<Args>(args)...) {}    \
-    };                                                                                             \
+        RegisteredExtension(Args&&... args) : Base(std::forward<Args>(args)...) {}
+#define register_object_member_info_extension_end(member_ptr)                                      \
+    }                                                                                              \
+    ;                                                                                              \
     template <>                                                                                    \
     struct Customised<member_ptr> {                                                                \
         using Type = RegisteredExtension<member_ptr>;                                              \
@@ -46,12 +44,48 @@
     };
 #define register_object_member_info_normal(...)
 #define register_object_member_info_extension(member_ptr, functor1, functor2)                      \
-    register_object_member_info_extension_(Extension, member_ptr, functor1, functor2)
+    register_object_member_info_extension_begin(member_ptr,                                        \
+                                                typename MemberPtrToType<member_ptr>::Type);       \
+    inline static auto f1 = functor1;                                                              \
+    inline static auto f2 = functor2;                                                              \
+    using ConvertorInfo =                                                                          \
+        Impl::Convertor<typename MemberPtrToType<member_ptr>::Type, decltype(f1), decltype(f2)>;   \
+    using Source = typename ConvertorInfo::Source;                                                 \
+    using Type = typename Deserialisable<typename ConvertorInfo::Type>::Type;                      \
+    void from_json(const Impl::Json& json) {                                                       \
+        Source tmp;                                                                                \
+        Type(tmp).from_json(json);                                                                 \
+        this->template value<Target>() = f1(tmp);                                                  \
+    }                                                                                              \
+    Impl::Json to_json() const {                                                                   \
+        auto tmp = f2(this->template value<Target>());                                             \
+        return Type(tmp).to_json();                                                                \
+    }                                                                                              \
+    register_object_member_info_extension_end(member_ptr);
 #define register_object_member_info_deserialise_only_extension(member_ptr, functor)                \
-    register_object_member_info_extension_(DeserialiseOnlyExtension, member_ptr, functor)
+    register_object_member_info_extension_begin(member_ptr,                                        \
+                                                typename MemberPtrToType<member_ptr>::Type);       \
+    inline static auto f = functor;                                                                \
+    using ConvertorInfo =                                                                          \
+        Impl::DeserialiseOnlyConvertor<typename MemberPtrToType<member_ptr>::Type,                 \
+                                       decltype(functor)>;                                         \
+    using Source = typename ConvertorInfo::Source;                                                 \
+    using Type = typename Deserialisable<typename ConvertorInfo::Type>::Type;                      \
+    void from_json(const Impl::Json& json) {                                                       \
+        Source tmp;                                                                                \
+        Type(tmp).from_json(json);                                                                 \
+        this->template value<Target>() = f(tmp);                                                   \
+    }                                                                                              \
+    register_object_member_info_extension_end(member_ptr);
 #define register_object_member_info_serialise_only_extension(member_ptr, functor)                  \
-    register_object_member_info_extension_(SerialiseOnlyExtension, member_ptr, functor)
-
+    register_object_member_info_extension_begin(member_ptr,                                        \
+                                                typename MemberPtrToType<member_ptr>::Type);       \
+    inline static auto f = functor;                                                                \
+    Impl::Json to_json() const {                                                                   \
+        auto tmp = f(this->template value<Target>());                                              \
+        return Deserialisable<decltype(tmp)>::Type(tmp).to_json();                                 \
+    }                                                                                              \
+    register_object_member_info_extension_end(member_ptr);
 #define register_object_member_info_expand_body(x0, x1, x2, x3, x4, ...)                           \
     JSON_DESERIALISER_MACRO_WRAP_1(register_object_member_info_##x0(x2, ##__VA_ARGS__););          \
     template <>                                                                                    \
@@ -123,5 +157,6 @@
 #define optional_object_member_with_serialise_only_extension(json_name, member_name, functor)      \
     (serialise_only_extension, json_name, member_name, true, void, functor)
 #define object_member_with_map_style(json_name, member_name, style_name, ...)                      \
-    (style, json_name, member_name, false, void, JsonDeserialise::MapStyle::style_name, ##__VA_ARGS__)
+    (style, json_name, member_name, false, void, JsonDeserialise::MapStyle::style_name,            \
+     ##__VA_ARGS__)
 #endif // JSON_DESERIALISER_GLOBAL_MACRO

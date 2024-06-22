@@ -30,7 +30,7 @@ struct NlohmannJsonLib {
     using Json = nlohmann::json;
     using JsonArray = Json;
     using JsonObject = Json;
-    using StringView = String;
+    using StringView = const std::string&;
 
     // Basic functions
 
@@ -178,7 +178,7 @@ struct NlohmannJsonLib {
 
     static String print_json(Json&& data, bool compress) {
 #ifdef _DEBUG
-        if (!data.isObject() && !data.isArray() && !data.isNull())
+        if (!data.is_object() && !data.is_array() && !data.is_null())
             throw std::ios_base::failure("Invalid root JSON!");
 #endif
         return data.dump(compress ? -1 : 4);
