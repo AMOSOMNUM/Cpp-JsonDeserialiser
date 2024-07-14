@@ -68,8 +68,6 @@
 #cmakedefine JSON_DESERIALISER_DEFAULT_MODE
 #ifdef JSON_DESERIALISER_DEFAULT_MODE
 
-#define array_field(object_type, json_name, member_name)                                           \
-    @lib@_array_field(object_type, json_name, member_name)
 #define declare_object(object_type, ...) @lib@_declare_object(object_type, __VA_ARGS__)
 #define declare_class_with_json_constructor_and_serialiser(object_type)                            \
     @lib@_declare_class_with_json_constructor_and_serialiser(object_type)
@@ -82,7 +80,8 @@
     @lib@_declare_default_extension(target_type, convertor, deconvertor)
 #define declare_named_extension(name, target_type, convertor, deconvertor)                         \
     @lib@_declare_named_extension(name, target_type, convertor, deconvertor)
-#undef JSON_DESERIALISER_DEFAULT_MODE
+
 #endif // JSON_DESERIALISER_DEFAULT_MODE
+#undef JSON_DESERIALISER_DEFAULT_MODE
 
 #endif // JSON_DESERIALISER_@LIB_ID@PrivateMACROS
