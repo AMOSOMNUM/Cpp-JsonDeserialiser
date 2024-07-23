@@ -2,7 +2,7 @@
 #define JSON_DESERIALISER_@LIB_ID@_DECORATOR
 
 #include "adaptor.@lib@.h"
-#include "json_deserialise.hpp"
+#include "decorator.hpp"
 
 #cmakedefine JSON_DESERIALISER_DEFAULT_MODE
 #ifdef JSON_DESERIALISER_DEFAULT_MODE
@@ -157,13 +157,13 @@ ConstField(SerialiseOnlyExtension_t&, String&&, const T&, F&&, Args&&...)
     -> ConstField<decltype(Impl::SerialiseOnlyExtension(std::declval<F>(), *((T*)nullptr)))>;
 
 struct Map_t {};
-struct Map_As_StringMap_t : Map_t {
+inline struct Map_As_StringMap_t : Map_t {
     static constexpr auto value = JsonDeserialise::MapStyle::STRING_MAP;
 } Map_As_StringMap;
-struct Map_As_ObjectArray_t : Map_t {
+inline struct Map_As_ObjectArray_t : Map_t {
     static constexpr auto value = JsonDeserialise::MapStyle::OBJECT_ARRAY;
 } Map_As_ObjectArray;
-struct Map_As_PairArray_t : Map_t {
+inline struct Map_As_PairArray_t : Map_t {
     static constexpr auto value = JsonDeserialise::MapStyle::PAIR_ARRAY;
 } Map_As_PairArray;
 template <typename T, typename MapStyle>
